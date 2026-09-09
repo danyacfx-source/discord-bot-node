@@ -1,8 +1,8 @@
 {
     "token": "",
     "bot_name": "Милый Килла",
-    "guild_id": 1524743223866556456,
-    "owner_id": 635370416252125184,
+    "guild_id": "1524743223866556456",
+    "owner_id": "635370416252125184",
     "level_roles_enabled": false,
     "levels": [],
     "extra_roles": [
@@ -117,7 +117,7 @@
             "Серебро сезона",
             "Бронза сезона"
         ],
-        "announce_channel_id": 1534711421026304132
+        "announce_channel_id": "1534711421026304132"
     },
     "overlay": {
         "enabled": true,
@@ -134,16 +134,16 @@
     "whitelist_channels": [],
     "exclude_roles": [],
     "announce_channel_id": 0,
-    "log_channel_id": 1534711234673246300,
+    "log_channel_id": "1534711234673246300",
     "ping_roles": [
         "Owner"
     ],
     "welcome": {
         "enabled": true,
         "send_dm": true,
-        "welcome_channel_id": 1524743224319672452,
+        "welcome_channel_id": "1524743224319672452",
         "welcome_channel_enabled": false,
-        "leave_channel_id": 1524743224319672452,
+        "leave_channel_id": "1524743224319672452",
         "leave_channel_enabled": false,
         "title": "Добро пожаловать на дискорд сервер dendich!",
         "intro": "Рады видеть тебя на нашем сервере! Мы играем в Escape from Tarkov, SQUAD, War Thunder и Minecraft — общаемся на счёт различных игр, смотрим стримы и играем вместе. Для начала прочитай правила в #правила и нажми там ✅ — это откроет тебе доступ к каналам #выдача-ролей и #уведомление-о-стримах.",
@@ -177,7 +177,7 @@
     },
     "reaction_roles": {
         "enabled": false,
-        "channel_id": 1534711255330328768,
+        "channel_id": "1534711255330328768",
         "message": "**Выбери уведомления**\nНажми на реакцию, чтобы получить или снять роль:",
         "roles": [
             {
@@ -192,7 +192,7 @@
     },
     "role_menu": {
         "enabled": true,
-        "channel_id": 1534711255330328768,
+        "channel_id": "1534711255330328768",
         "message": "**Уведомления и роли меню**",
         "placeholder": "Выбери роли…",
         "max_values": 10,
@@ -207,8 +207,8 @@
     },
     "rules_gate": {
         "enabled": true,
-        "channel_id": 1524768657429893221,
-        "message_id": 1534751802514346146,
+        "channel_id": "1524768657429893221",
+        "message_id": "1534751802514346146",
         "emoji": "✅",
         "role": "Ознакомлен"
     },
@@ -271,7 +271,7 @@
     },
     "birthday": {
         "enabled": true,
-        "channel_id": 1534711421026304132,
+        "channel_id": "1534711421026304132",
         "announce_hour": 9,
         "role_ping": ""
     },
@@ -518,20 +518,20 @@
     },
     "ram_report": {
         "enabled": true,
-        "channel_id": 1534720904221692005,
+        "channel_id": "1534720904221692005",
         "interval_minutes": 30
     },
     "guild_logs": {
         "enabled": true,
-        "member_log_channel_id": 1543060997823139941,
-        "message_log_channel_id": 1543061000956153911,
-        "voice_log_channel_id": 1534711282748362803,
-        "mod_log_channel_id": 1543061004307538020,
-        "bot_log_channel_id": 1534711234673246300,
+        "member_log_channel_id": "1543060997823139941",
+        "message_log_channel_id": "1543061000956153911",
+        "voice_log_channel_id": "1534711282748362803",
+        "mod_log_channel_id": "1543061004307538020",
+        "bot_log_channel_id": "1534711234673246300",
         "startup_notify": true,
         "ignore_bots": true,
         "ignore_category_ids": [
-            1534711206605230120
+            "1534711206605230120"
         ],
         "ignore_channel_ids": [],
         "rejoin_window_minutes": 30,
@@ -553,7 +553,7 @@
         "upcoming_lead_minutes": 10,
         "prep_lead_minutes": 5,
         "screenshot_seconds": 600,
-        "screenshot_channel_id": 1535055498020126750,
+        "screenshot_channel_id": "1535055498020126750",
         "promo_message": "",
         "promo_interval_seconds": 1800,
         "status_poll_seconds": 120,
@@ -692,7 +692,7 @@
         "channel": "dendosich",
         "live": {
             "enabled": true,
-            "channel_id": 1535055498020126750,
+            "channel_id": "1535055498020126750",
             "ping_role_id": "1536723619366051901",
             "poll_interval_seconds": 300,
             "status_viewers": true,
@@ -707,7 +707,7 @@
     },
     "schedule": {
         "enabled": true,
-        "channel_id": 1535055498020126750,
+        "channel_id": "1535055498020126750",
         "reminder_minutes": 30
     }
 }

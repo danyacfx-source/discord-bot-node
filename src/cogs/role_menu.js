@@ -1,4 +1,4 @@
-import {
+﻿import {
   EmbedBuilder,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
@@ -104,7 +104,7 @@ const cog = {
     registry.component("role_menu_add", (interaction) => applyRoles(interaction, true));
     registry.component("role_menu_remove", (interaction) => applyRoles(interaction, false));
 
-    registry.event("ready", async () => {
+    registry.event("clientReady", async () => {
       if (cfg.enabled === false) return;
       await ensurePanel(registry.client);
     });

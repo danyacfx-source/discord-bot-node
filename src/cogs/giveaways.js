@@ -1,4 +1,4 @@
-import { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } from "discord.js";
+﻿import { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } from "discord.js";
 import * as db from "../db.js";
 import { log } from "../notify.js";
 
@@ -9,7 +9,7 @@ const cog = {
   active: new Map(),
 
   async setup(registry) {
-    registry.event("ready", async (client) => {
+    registry.event("clientReady", async (client) => {
       if (cog._started) return;
       cog._started = true;
       cog._nextId = db.giveawayNextId() + 1;
@@ -267,10 +267,10 @@ const cog = {
   },
 
   _extractMessageId(link) {
-    if (/^\d+$/.test(link)) return Number(link);
+    if (/^\d+$/.test(link)) return link;
     const parts = link.split("/");
     const last = parts[parts.length - 1];
-    return /^\d+$/.test(last) ? Number(last) : null;
+    return /^\d+$/.test(last) ? last : null;
   },
 };
 

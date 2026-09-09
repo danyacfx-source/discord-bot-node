@@ -1,4 +1,4 @@
-import { PermissionFlagsBits } from "discord.js";
+﻿import { PermissionFlagsBits } from "discord.js";
 import { CHANNELS, EXTRA_ROLES, GUILD_ID, ROLE_SETTINGS, LEVELS } from "../config.js";
 import { log } from "../notify.js";
 
@@ -45,9 +45,9 @@ const cog = {
   name: "Setup",
   async setup(registry) {
     // on_ready — автонастройка ролей
-    registry.event("ready", async () => {
+    registry.event("clientReady", async () => {
       if (!ROLE_SETTINGS || !GUILD_ID) return;
-      const guild = (await registry.client.guilds.fetch(String(GUILD_ID))).catch?.(null) || registry.client.guilds.cache.get(String(GUILD_ID));
+      const guild = (await registry.client.guilds.fetch(String(GUILD_ID)).catch(() => null)) || registry.client.guilds.cache.get(String(GUILD_ID));
       if (!guild) return;
       const botMember = await guild.members.fetchMe().catch(() => null);
       if (!botMember) return;

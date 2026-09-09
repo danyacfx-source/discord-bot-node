@@ -12,8 +12,8 @@ function initDb() {
   db.pragma("journal_mode = WAL");
   db.pragma("busy_timeout = 10000");
   db.exec(`CREATE TABLE IF NOT EXISTS members (
-    guild_id INTEGER NOT NULL,
-    user_id INTEGER NOT NULL,
+    guild_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
     points INTEGER NOT NULL DEFAULT 0,
     xp INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (guild_id, user_id)
@@ -25,13 +25,13 @@ function initDb() {
     PRIMARY KEY (channel, name)
   )`);
   db.exec(`CREATE TABLE IF NOT EXISTS season_members (
-    guild_id INTEGER NOT NULL,
-    user_id INTEGER NOT NULL,
+    guild_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
     points INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (guild_id, user_id)
   )`);
   db.exec(`CREATE TABLE IF NOT EXISTS birthdays (
-    user_id INTEGER PRIMARY KEY,
+    user_id TEXT PRIMARY KEY,
     month INTEGER NOT NULL,
     day INTEGER NOT NULL
   )`);
@@ -42,10 +42,10 @@ function initDb() {
     description TEXT,
     winner_count INTEGER,
     end_time REAL,
-    channel_id INTEGER,
-    guild_id INTEGER,
-    message_id INTEGER,
-    author_id INTEGER,
+    channel_id TEXT,
+    guild_id TEXT,
+    message_id TEXT,
+    author_id TEXT,
     min_days INTEGER DEFAULT 0,
     participants TEXT DEFAULT '[]',
     status TEXT DEFAULT 'active'
@@ -55,12 +55,87 @@ function initDb() {
     db.exec("ALTER TABLE members ADD COLUMN xp INTEGER NOT NULL DEFAULT 0");
     db.exec("UPDATE members SET xp = points * 20 WHERE xp = 0 AND points > 0");
   }
+  migrateIdColumnsToText();
   db.exec("CREATE INDEX IF NOT EXISTS idx_members_guild_points ON members (guild_id, points DESC)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_season_members_guild_points ON season_members (guild_id, points DESC)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_counters_channel ON counters (channel)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_giveaways_status ON giveaways (status)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_giveaways_message ON giveaways (message_id)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_giveaways_end ON giveaways (end_time)");
+}
+
+// Снежинки Discord > 2^53 не помещаются в JS Number без потери точности.
+// Если БД создалась со старыми INTEGER-колонками — мигрируем их в TEXT (CAST точен на стороне SQLite).
+function migrateIdColumnsToText() {
+  const migrations = [
+    {
+      table: "members",
+      cols: ["guild_id", "user_id"],
+      create: `CREATE TABLE members (
+        guild_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        points INTEGER NOT NULL DEFAULT 0,
+        xp INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (guild_id, user_id)
+      )`,
+      cast: "CAST(guild_id AS TEXT), CAST(user_id AS TEXT), points, xp",
+    },
+    {
+      table: "season_members",
+      cols: ["guild_id", "user_id"],
+      create: `CREATE TABLE season_members (
+        guild_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        points INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (guild_id, user_id)
+      )`,
+      cast: "CAST(guild_id AS TEXT), CAST(user_id AS TEXT), points",
+    },
+    {
+      table: "birthdays",
+      cols: ["user_id"],
+      create: `CREATE TABLE birthdays (
+        user_id TEXT PRIMARY KEY,
+        month INTEGER NOT NULL,
+        day INTEGER NOT NULL
+      )`,
+      cast: "CAST(user_id AS TEXT), month, day",
+    },
+    {
+      table: "giveaways",
+      cols: ["channel_id", "guild_id", "message_id", "author_id"],
+      create: `CREATE TABLE giveaways (
+        id INTEGER PRIMARY KEY,
+        title TEXT,
+        prize TEXT,
+        description TEXT,
+        winner_count INTEGER,
+        end_time REAL,
+        channel_id TEXT,
+        guild_id TEXT,
+        message_id TEXT,
+        author_id TEXT,
+        min_days INTEGER DEFAULT 0,
+        participants TEXT DEFAULT '[]',
+        status TEXT DEFAULT 'active'
+      )`,
+      cast: `id, title, prize, description, winner_count, end_time,
+        CAST(channel_id AS TEXT), CAST(guild_id AS TEXT),
+        CAST(message_id AS TEXT), CAST(author_id AS TEXT),
+        min_days, participants, status`,
+    },
+  ];
+  for (const { table, cols, create, cast } of migrations) {
+    const info = db.prepare(`PRAGMA table_info(${table})`).all();
+    if (!info.length) continue;
+    const needsMigrate = info.some((c) => cols.includes(c.name) && c.type.toUpperCase() !== "TEXT");
+    if (!needsMigrate) continue;
+    const old = `${table}__old`;
+    db.exec(`ALTER TABLE ${table} RENAME TO ${old}`);
+    db.exec(create);
+    db.exec(`INSERT INTO ${table} SELECT ${cast} FROM ${old}`);
+    db.exec(`DROP TABLE ${old}`);
+  }
 }
 initDb();
 
@@ -193,7 +268,7 @@ function rowToGiveaway(row) {
     end_time: row.end_time,
     channel_id: row.channel_id,
     guild_id: row.guild_id,
-    message_id: row.message_id,
+    message_id: row.message_id === "0" ? 0 : row.message_id,
     author_id: row.author_id,
     min_days: row.min_days,
     participants: row.participants,

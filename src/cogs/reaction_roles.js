@@ -1,4 +1,4 @@
-import { EmbedBuilder } from "discord.js";
+﻿import { EmbedBuilder } from "discord.js";
 import { CONFIG } from "../config.js";
 import { log } from "../notify.js";
 
@@ -92,7 +92,7 @@ async function toggleRole(payload, add, client) {
 const cog = {
   name: "ReactionRoles",
   async setup(registry) {
-    registry.event("ready", async () => {
+    registry.event("clientReady", async () => {
       if (started) return;
       started = true;
       // Find the guild from config

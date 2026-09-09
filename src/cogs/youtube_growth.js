@@ -1,4 +1,4 @@
-import fs from "node:fs";
+﻿import fs from "node:fs";
 import path from "node:path";
 import { EmbedBuilder } from "discord.js";
 import { CONFIG, DATA_DIR } from "../config.js";
@@ -263,7 +263,7 @@ const cog = {
       },
     });
 
-    registry.event("ready", async () => {
+    registry.event("clientReady", async () => {
       if (started) return;
       started = true;
       if (cfg.enabled === false) {

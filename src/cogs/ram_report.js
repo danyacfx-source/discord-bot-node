@@ -1,4 +1,4 @@
-import { EmbedBuilder } from "discord.js";
+﻿import { EmbedBuilder } from "discord.js";
 import { CONFIG } from "../config.js";
 import { log } from "../notify.js";
 
@@ -46,7 +46,7 @@ const cog = {
   async setup(registry) {
     if (!enabled || channelId <= 0) return;
 
-    registry.event("ready", async () => {
+    registry.event("clientReady", async () => {
       if (timerId) return;
       const client = registry.client;
       log.info("RamReport", `Отчёт по ОЗУ: каждые ${intervalMinutes} мин в канал ${channelId}`);

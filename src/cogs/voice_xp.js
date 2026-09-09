@@ -1,4 +1,4 @@
-import { ChannelType } from "discord.js";
+﻿import { ChannelType } from "discord.js";
 import * as db from "../db.js";
 import { CONFIG, LEVELS } from "../config.js";
 import { log } from "../notify.js";
@@ -58,7 +58,7 @@ const cog = {
   async setup(registry) {
     bot = registry.client;
 
-    registry.event("ready", async () => {
+    registry.event("clientReady", async () => {
       if (started) return;
       started = true;
       if (cfg.enabled === false) return;

@@ -1,4 +1,4 @@
-import { EmbedBuilder } from "discord.js";
+﻿import { EmbedBuilder } from "discord.js";
 import { CONFIG } from "../config.js";
 import { log } from "../notify.js";
 
@@ -196,7 +196,7 @@ const cog = {
       },
     });
 
-    registry.event("ready", async () => {
+    registry.event("clientReady", async () => {
       if (started) return;
       started = true;
       if (cfg.enabled === false) {

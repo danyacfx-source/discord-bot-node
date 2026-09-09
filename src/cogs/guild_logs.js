@@ -1,4 +1,4 @@
-import path from "node:path";
+﻿import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFile } from "node:child_process";
 import { EmbedBuilder } from "discord.js";
@@ -429,7 +429,7 @@ async function onMemberUpdate(oldMember, newMember) {
 const cog = {
   name: "GuildLogs",
   async setup(registry) {
-    registry.event("ready", onReady);
+    registry.event("clientReady", onReady);
     registry.event("guildMemberAdd", onMemberJoin);
     registry.event("guildMemberRemove", onMemberRemove);
     registry.event("messageCreate", onMessage);

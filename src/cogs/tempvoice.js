@@ -1,4 +1,4 @@
-import fs from "node:fs";
+﻿import fs from "node:fs";
 import path from "node:path";
 import {
   EmbedBuilder,
@@ -475,7 +475,7 @@ const cog = {
   async setup(registry) {
     bot = registry.client;
 
-    registry.event("ready", () => onReady().catch((e) => log.error("TempVoice", `Ошибка ready: ${e.message}`, e)));
+    registry.event("clientReady", () => onReady().catch((e) => log.error("TempVoice", `Ошибка ready: ${e.message}`, e)));
 
     registry.event("voiceStateUpdate", (oldState, newState) =>
       onVoiceStateUpdate(oldState, newState).catch((e) =>

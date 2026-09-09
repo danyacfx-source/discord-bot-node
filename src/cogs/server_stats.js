@@ -1,4 +1,4 @@
-import { CONFIG } from "../config.js";
+﻿import { CONFIG } from "../config.js";
 import { log } from "../notify.js";
 
 const cfg = CONFIG.server_stats || {};
@@ -9,7 +9,7 @@ const cog = {
   _interval: null,
 
   async setup(registry) {
-    registry.event("ready", async (client) => {
+    registry.event("clientReady", async (client) => {
       if (cog._started) return;
       cog._started = true;
       if (!cfg.enabled) return;

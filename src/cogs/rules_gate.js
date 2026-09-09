@@ -1,4 +1,4 @@
-import { CONFIG } from "../config.js";
+﻿import { CONFIG } from "../config.js";
 import { log } from "../notify.js";
 
 const cfg = CONFIG.rules_gate || {};
@@ -9,7 +9,7 @@ const cog = {
   _started: false,
 
   async setup(registry) {
-    registry.event("ready", async () => {
+    registry.event("clientReady", async () => {
       if (cog._started) return;
       cog._started = true;
       cog._ensureReaction(registry.client);

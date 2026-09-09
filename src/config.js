@@ -51,7 +51,7 @@ export const PING_ROLES = CONFIG.ping_roles || ["Owner", "Moderator"];
 
 const tempTriggers = {};
 for (const [k, v] of Object.entries(CONFIG.temp_triggers || {})) {
-  tempTriggers[Number(k)] = v;
+  tempTriggers[String(k)] = v;
 }
 export const TEMP_TRIGGERS = tempTriggers;
 export const SEASON = CONFIG.season || {};

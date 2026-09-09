@@ -1,4 +1,4 @@
-import { PermissionFlagsBits } from "discord.js";
+﻿import { PermissionFlagsBits } from "discord.js";
 import { CONFIG, GUILD_ID } from "../config.js";
 import { log } from "../notify.js";
 
@@ -47,7 +47,7 @@ async function applyAll(guild) {
 const cog = {
   name: "Permissions",
   async setup(registry) {
-    registry.event("ready", async () => {
+    registry.event("clientReady", async () => {
       if (!autoApply || !Object.keys(categories).length || !GUILD_ID) return;
       const guild = registry.client.guilds.cache.get(String(GUILD_ID));
       if (!guild) return;

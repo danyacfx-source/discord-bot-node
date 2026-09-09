@@ -1,4 +1,4 @@
-import fs from "node:fs";
+﻿import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createClient, TOKEN } from "./client.js";
@@ -87,7 +87,7 @@ async function main() {
   }
 
   // ---------- Глобальные обработчики ----------
-  client.once("ready", async () => {
+  client.once("clientReady", async () => {
     fileLog("INFO", `Бот запущен: ${client.user?.tag} (ID: ${client.user?.id})`);
     for (const g of client.guilds.cache.values()) {
       fileLog("INFO", `СЕРВЕР: ${g.name} | ID: ${g.id}`);
