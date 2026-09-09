@@ -6,12 +6,17 @@ WORKDIR /app
 
 # Сначала копируем только манифесты — кэш слоя для зависимостей
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+# лучше-sqlite3 — нативный модуль: ставим build-tools на случай, если нет prebuilt-бинарника
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/* \
+    && npm ci --omit=dev
 
 # Копируем код
 COPY src ./src
 COPY webpanel ./webpanel
 COPY config.json ./config.json
+COPY main.js ./main.js
 
 # Токен и секреты — через переменные окружения (см. .env.example)
 ENV DISCORD_TOKEN=""

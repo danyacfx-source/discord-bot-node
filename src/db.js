@@ -1,4 +1,4 @@
-import { DatabaseSync } from "node:sqlite";
+import Database from "better-sqlite3";
 import { randomInt } from "node:crypto";
 import { DB_PATH, LEVELS } from "./config.js";
 
@@ -8,9 +8,9 @@ export const XP_MAX = 25;
 let db;
 
 function initDb() {
-  db = new DatabaseSync(DB_PATH);
-  db.exec("PRAGMA journal_mode=WAL");
-  db.exec("PRAGMA busy_timeout=10000");
+  db = new Database(DB_PATH);
+  db.pragma("journal_mode = WAL");
+  db.pragma("busy_timeout = 10000");
   db.exec(`CREATE TABLE IF NOT EXISTS members (
     guild_id INTEGER NOT NULL,
     user_id INTEGER NOT NULL,
