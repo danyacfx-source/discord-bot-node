@@ -3,4 +3,5 @@ data/
 *.log
 .bot.lock
 .env
-data.db
+data.dbdata.db-wal
+data.db-shm
