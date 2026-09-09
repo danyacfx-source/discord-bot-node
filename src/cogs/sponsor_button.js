@@ -63,7 +63,8 @@ const cog = {
       );
       if (found) {
         db.kvSet("sponsor_message_id", found.id);
-        log.info("Sponsor", `Найдено существующее сообщение спонсора ${found.id}`);
+        await found.edit({ embeds: [cog._buildEmbed(client)], components: [cog._buildRow()] });
+        log.info("Sponsor", `Найдено сообщение спонсора ${found.id}, применён новый дизайн`);
         return;
       }
     } catch {}
