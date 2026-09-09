@@ -51,11 +51,11 @@ const cog = {
       const client = registry.client;
       log.info("RamReport", `Отчёт по ОЗУ: каждые ${intervalMinutes} мин в канал ${channelId}`);
 
-      // First run after interval
+      // Первый отчёт — сразу после старта, потом по интервалу
       timerId = setTimeout(async function tick() {
         await sendReport(client);
         timerId = setTimeout(tick, intervalMinutes * 60 * 1000);
-      }, intervalMinutes * 60 * 1000);
+      }, 5000);
     });
   },
 };
