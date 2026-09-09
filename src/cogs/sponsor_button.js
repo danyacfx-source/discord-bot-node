@@ -43,7 +43,15 @@ const cog = {
     if (existing) {
       try {
         const msg = await channel.messages.fetch(existing);
-        if (msg) return; // сообщение уже есть
+        if (msg) {
+          const hasLink = msg.components?.[0]?.components?.some(
+            (c) => c.type === 2 && c.style === 5 && c.url === donateUrl
+          );
+          if (hasLink) return;
+          await msg.edit({ embeds: [cog._buildEmbed()], components: [cog._buildRow()] });
+          log.info("Sponsor", `Кнопка обновлена на ${donateUrl} (${msg.id})`);
+          return;
+        }
       } catch {
         // сообщение удалено или лежит в другом канале — ищем заново
       }
