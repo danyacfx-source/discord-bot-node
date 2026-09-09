@@ -1,0 +1,17 @@
+{
+  "name": "bot-node",
+  "version": "1.0.0",
+  "description": "Discord-бот, порт с Python на Node.js",
+  "type": "module",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "node src/main.js",
+    "dev": "node --watch src/main.js"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3"
+  }
+}

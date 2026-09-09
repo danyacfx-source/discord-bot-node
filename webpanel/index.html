@@ -1,0 +1,517 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Embed Constructor — СЕНЕЖ</title>
+<style>
+  :root {
+    --bg: #1e1f22; --bg2: #2b2d31; --card: #313338; --border: #3f4147;
+    --text: #dbdee1; --muted: #949ba4; --accent: #5865f2; --ok: #23a55a;
+    --err: #f23f43; --bar: #5865f2;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 14px/1.5 "Segoe UI", Roboto, Arial, sans-serif; }
+  header { padding: 14px 20px; background: var(--bg2); border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; }
+  .badge { font-size: 12px; padding: 3px 10px; border-radius: 12px; }
+  .badge.ok { background: rgba(35,165,90,.15); color: var(--ok); }
+  .badge.off { background: rgba(242,63,67,.15); color: var(--err); }
+  .wrap { display: grid; grid-template-columns: minmax(0,1fr) minmax(340px, 460px); gap: 16px; padding: 16px 20px; }
+  .col, .panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 16px; }
+  .panel h2 { font-size: 15px; margin: 0 0 12px; }
+  label { display: block; margin: 10px 0 4px; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+  input[type=text], input[type=url], textarea, select {
+    width: 100%; background: var(--card); color: var(--text); border: 1px solid var(--border);
+    border-radius: 6px; padding: 8px 10px; font: inherit; }
+  textarea { resize: vertical; min-height: 64px; }
+  .row { display: flex; gap: 10px; }
+  .row > div { flex: 1; min-width: 0; }
+  .checks { display: flex; gap: 18px; align-items: center; margin-top: 10px; }
+  .checks label { display: inline-flex; align-items: center; gap: 6px; margin: 0; text-transform: none; letter-spacing: 0; color: var(--text); font-size: 13px; }
+  .btn { border: 0; border-radius: 6px; padding: 9px 14px; font: inherit; font-weight: 600; cursor: pointer; color: #fff; }
+  .btn.primary { background: var(--accent); }
+  .btn.success { background: var(--ok); }
+  .btn.danger { background: var(--err); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .mode-switch { display: flex; gap: 8px; margin-top: 12px; }
+  .mode-switch .btn { background: var(--card); border: 1px solid var(--border); color: var(--muted); }
+  .mode-switch .btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .field-item { border: 1px solid var(--border); border-radius: 6px; padding: 8px; margin-top: 8px; background: var(--card); }
+  .field-item .row { align-items: center; }
+  .field-item .inlinebox { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .field-item .inlinebox input { width: auto; }
+  .mini { font-size: 11px; color: var(--muted); }
+  .actions { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .actions .btn { flex: 1; min-width: 120px; }
+  .color-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--border); vertical-align: middle; margin-right: 6px; }
+  .empty { border: 1px dashed var(--border); border-radius: 8px; color: var(--muted); padding: 40px 20px; text-align: center; }
+  .embed-card { background: var(--card); border-radius: 8px; padding: 12px 16px; border-left: 4px solid var(--bar); margin-top: 12px; }
+  .embed-title { font-weight: 700; margin-bottom: 4px; }
+  .embed-desc { white-space: pre-wrap; }
+  .embed-thumb { float: right; margin: 4px 0 4px 12px; border-radius: 6px; width: 72px; height: 72px; object-fit: cover; }
+  .embed-image { max-width: 100%; margin-top: 10px; border-radius: 6px; display: block; }
+  .fields { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 16px; margin-top: 10px; }
+  .fields.two { grid-template-columns: repeat(2, 1fr); }
+  .fields .fname { font-weight: 600; font-size: 13px; }
+  .fields .fvalue { white-space: pre-wrap; }
+  .embed-footer { display: flex; align-items: center; gap: 8px; margin-top: 12px; color: var(--muted); font-size: 12px; }
+  .embed-footer img { width: 18px; height: 18px; border-radius: 50%; }
+  .embed-ts { margin-top: 8px; color: var(--muted); font-size: 12px; }
+  .content-preview { white-space: pre-wrap; }
+  #toast { position: fixed; right: 20px; bottom: 20px; max-width: 420px; padding: 10px 14px; border-radius: 6px; background: var(--card); border: 1px solid var(--border); display: none; white-space: pre-wrap; }
+  #toast.ok { border-color: var(--ok); }
+  #toast.err { border-color: var(--err); }
+  #login { position: fixed; inset: 0; background: var(--bg); display: none; align-items: center; justify-content: center; z-index: 10; }
+  #login > div { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 24px; min-width: 300px; }
+  #login h2 { margin: 0 0 4px; }
+  @media (max-width: 900px) { .wrap { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>🎨 Embed Constructor — СЕНЕЖ</h1>
+  <span id="status" class="badge off">бот: …</span>
+  <span id="guildname" class="mini"></span>
+</header>
+
+<div class="wrap">
+  <div class="col">
+    <div class="mode-switch">
+      <button class="btn active" id="mode-webhook" onclick="setMode('webhook')">Через вебхук</button>
+      <button class="btn" id="mode-bot" onclick="setMode('bot')">Через бота</button>
+    </div>
+
+    <div id="block-webhook">
+      <label>Webhook URL</label>
+      <input id="wh_url" type="url" placeholder="https://discord.com/api/webhooks/..." />
+    </div>
+    <div id="block-bot" style="display:none">
+      <label>Канал</label>
+      <select id="sel_channel"><option value="">— загрузка —</option></select>
+    </div>
+    <label>ID сообщения (загрузка / редактирование)</label>
+    <input id="msg_id" type="text" placeholder="например 1543587270718787677" />
+
+    <label>Текст сообщения (необязательно)</label>
+    <textarea id="f_content" rows="2" oninput="renderPreview()"></textarea>
+
+    <div class="row">
+      <div>
+        <label>Заголовок эмбеда</label>
+        <input id="f_title" type="text" maxlength="256" oninput="renderPreview()" />
+      </div>
+      <div>
+        <label>Цвет</label>
+        <input id="f_color" type="text" placeholder="#ff0000, red, 3498DB" oninput="renderColor(); renderPreview()" />
+      </div>
+    </div>
+
+    <label>Описание</label>
+    <textarea id="f_desc" rows="4" maxlength="4000" oninput="renderPreview()"></textarea>
+
+    <div class="checks">
+      <label><input id="f_ts" type="checkbox" onchange="renderPreview()" /> Время</label>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Автор: имя</label>
+        <input id="f_author_name" type="text" maxlength="256" oninput="renderPreview()" />
+      </div>
+      <div>
+        <label>Автор: иконка (URL)</label>
+        <input id="f_author_icon" type="url" oninput="renderPreview()" />
+      </div>
+      <div>
+        <label>Автор: ссылка (URL)</label>
+        <input id="f_author_url" type="url" oninput="renderPreview()" />
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Футер: текст</label>
+        <input id="f_footer_text" type="text" maxlength="2048" oninput="renderPreview()" />
+      </div>
+      <div>
+        <label>Футер: иконка (URL)</label>
+        <input id="f_footer_icon" type="url" oninput="renderPreview()" />
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label>Миниатюра (URL)</label>
+        <input id="f_thumb" type="url" oninput="renderPreview()" />
+      </div>
+      <div>
+        <label>Изображение (URL)</label>
+        <input id="f_image" type="url" oninput="renderPreview()" />
+      </div>
+    </div>
+
+    <label>Поля</label>
+    <div id="fields"></div>
+    <button class="btn" id="add_field" onclick="addField()">+ добавить поле</button>
+
+    <div class="actions">
+      <button class="btn" id="btn_load" onclick="loadMsg()">⬇ Загрузить</button>
+      <button class="btn success" id="btn_send" onclick="sendMsg()">🚀 Отправить</button>
+      <button class="btn primary" id="btn_edit" onclick="editMsg()">✏️ Редактировать</button>
+    </div>
+    <p class="mini">Сервер: 127.0.0.1:17890 (только локально). Отправка через вебхук идёт через прокси, как и у бота.</p>
+  </div>
+
+  <div class="panel">
+    <h2>Предпросмотр</h2>
+    <div id="preview"><div class="empty">Эмбед пока пуст. Заполните поля слева.</div></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<div id="login">
+  <div>
+    <h2>🔒 Панель СЕНЕЖ</h2>
+    <p class="mini">Введите пароль панели</p>
+    <input id="login_pw" type="password" placeholder="Пароль" />
+    <button class="btn success" id="btn_login" style="width:100%;margin-top:12px">Войти</button>
+  </div>
+</div>
+
+<script>
+let TOKEN = "__PANEL_TOKEN__";
+const PANEL_LOGIN = __PANEL_LOGIN__;
+const COLORS = {
+  red: 0xE74C3C, orange: 0xE67E22, yellow: 0xF1C40F, green: 0x2ECC71,
+  teal: 0x1ABC9C, blue: 0x3498DB, darkblue: 0x206694, purple: 0x9B59B6,
+  pink: 0xE91E63, white: 0xFFFFFF, gray: 0x95A5A6, dark: 0x2C2F33,
+};
+let mode = "webhook";
+let fields = [];
+
+const $ = (id) => document.getElementById(id);
+const hex6 = /^#?([0-9a-fA-F]{6})$/;
+
+function toast(msg, ok) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.className = ok ? "ok" : "err";
+  t.style.display = "block";
+  clearTimeout(t._h);
+  t._h = setTimeout(() => { t.style.display = "none"; }, ok ? 4000 : 8000);
+}
+
+async function doLogin() {
+  const pw = $("login_pw").value;
+  if (!pw) return false;
+  const r = await fetch("/api/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password: pw }),
+  });
+  let d = null;
+  try { d = await r.json(); } catch (e) {}
+  if (r.ok && d && d.token) { TOKEN = d.token; return true; }
+  return false;
+}
+
+async function api(path, payload) {
+  if (!TOKEN) {
+    if (!await doLogin()) { toast("Нужен пароль панели", false); throw new Error("noauth"); }
+  }
+  const r = await fetch(path, {
+    method: payload ? "POST" : "GET",
+    headers: { "Content-Type": "application/json", "X-Panel-Token": TOKEN },
+    body: payload ? JSON.stringify(payload) : undefined,
+  });
+  let data = null;
+  try { data = await r.json(); } catch (e) {}
+  return { status: r.status, data };
+}
+
+async function refreshChannels() {
+  const r = await api("/api/bot/channels");
+  const sel = $("sel_channel");
+  sel.innerHTML = "";
+  if (r.data && r.data.channels) {
+    for (const c of r.data.channels) {
+      const o = document.createElement("option");
+      o.value = c.id;
+      o.textContent = (c.category ? c.category + " / " : "") + c.name + (c.nsfw ? " 🔞" : "");
+      sel.appendChild(o);
+    }
+  } else {
+    const o = document.createElement("option");
+    o.value = ""; o.textContent = "— каналы недоступны —";
+    sel.appendChild(o);
+  }
+}
+
+function resolveColor(str) {
+  if (!str) return null;
+  const s = str.trim().toLowerCase();
+  if (COLORS[s] !== undefined) return COLORS[s];
+  const m = hex6.exec(s);
+  if (m) return parseInt(m[1], 16);
+  return null;
+}
+
+function renderColor() {
+  const c = resolveColor($("f_color").value);
+  const el = document.getElementById("colsw");
+  if (el) el.style.background = c === null ? "transparent" : "#" + c.toString(16).padStart(6, "0");
+}
+
+function setMode(m) {
+  mode = m;
+  $("mode-webhook").className = "btn" + (m === "webhook" ? " active" : "");
+  $("mode-bot").className = "btn" + (m === "bot" ? " active" : "");
+  $("block-webhook").style.display = m === "webhook" ? "" : "none";
+  $("block-bot").style.display = m === "bot" ? "" : "none";
+  if (m === "bot") refreshChannels();
+}
+
+function targetInfo() {
+  if (mode === "webhook") return { webhook_url: $("wh_url").value.trim() };
+  return { channel_id: $("sel_channel").value };
+}
+
+function buildEmbed() {
+  const e = {};
+  const t = $("f_title").value.trim();
+  const d = $("f_desc").value.trim();
+  if (t) e.title = t;
+  if (d) e.description = d;
+  const color = resolveColor($("f_color").value);
+  if (color !== null) e.color = color;
+  const an = $("f_author_name").value.trim();
+  if (an) {
+    e.author = { name: an };
+    if ($("f_author_icon").value.trim()) e.author.icon_url = $("f_author_icon").value.trim();
+    if ($("f_author_url").value.trim()) e.author.url = $("f_author_url").value.trim();
+  }
+  const ft = $("f_footer_text").value.trim();
+  if (ft) {
+    e.footer = { text: ft };
+    if ($("f_footer_icon").value.trim()) e.footer.icon_url = $("f_footer_icon").value.trim();
+  }
+  if ($("f_thumb").value.trim()) e.thumbnail = { url: $("f_thumb").value.trim() };
+  if ($("f_image").value.trim()) e.image = { url: $("f_image").value.trim() };
+  if ($("f_ts").checked) e.timestamp = new Date().toISOString();
+  const fl = fields.filter((f) => f.name.trim());
+  if (fl.length && fl.length <= 25) e.fields = fl.map((f) => ({ name: f.name, value: f.value, inline: f.inline }));
+  return e;
+}
+
+function tag(t, cls, html) {
+  const el = document.createElement(t);
+  if (cls) el.className = cls;
+  if (html !== undefined) el.innerHTML = html;
+  return el;
+}
+
+function renderPreview() {
+  const pv = $("preview");
+  const content = $("f_content").value;
+  const e = buildEmbed();
+  const has = content.trim() || Object.keys(e).length;
+  if (!has) {
+    pv.innerHTML = '<div class="empty">Эмбед пока пуст. Заполните поля слева.</div>';
+    return;
+  }
+  pv.innerHTML = "";
+  if (content.trim()) pv.appendChild(tag("div", "content-preview", escapeHtml(content)));
+  if (!Object.keys(e).length) return;
+  const card = tag("div", "embed-card");
+  card.style.borderLeftColor = e.color === undefined ? "var(--bar)" : "#" + e.color.toString(16).padStart(6, "0");
+  if (e.thumbnail) {
+    const img = tag("img", "embed-thumb", "");
+    img.src = e.thumbnail.url;
+    card.appendChild(img);
+  }
+  if (e.author) {
+    const a = tag("div", "embed-author");
+    if (e.author.icon_url) {
+      const ai = tag("img", "", "");
+      ai.src = e.author.icon_url; ai.style.cssText = "width:20px;height:20px;border-radius:50%;vertical-align:middle;margin-right:6px;";
+      a.appendChild(ai);
+    }
+    a.appendChild(document.createTextNode(e.author.name));
+    if (e.author.url) { a.style.color = "#00a8fc"; }
+    card.appendChild(a);
+  }
+  if (e.title) card.appendChild(tag("div", "embed-title", escapeHtml(e.title)));
+  if (e.description) card.appendChild(tag("div", "embed-desc", escapeHtml(e.description)));
+  if (e.fields) {
+    const g = tag("div", "fields" + (e.fields.every((f) => f.inline) ? "" : " two"));
+    for (const f of e.fields) {
+      const cell = tag("div", "");
+      cell.appendChild(tag("div", "fname", escapeHtml(f.name)));
+      cell.appendChild(tag("div", "fvalue", escapeHtml(f.value || "·")));
+      g.appendChild(cell);
+    }
+    card.appendChild(g);
+  }
+  if (e.footer) {
+    const f = tag("div", "embed-footer");
+    if (e.footer.icon_url) { const fi = tag("img", "", ""); fi.src = e.footer.icon_url; f.appendChild(fi); }
+    f.appendChild(document.createTextNode(e.footer.text));
+    card.appendChild(f);
+  } else if (e.timestamp) {
+    card.appendChild(tag("div", "embed-ts", new Date(e.timestamp).toLocaleString("ru-RU") + " · СЕНЕЖ"));
+  }
+  if (e.image) { const im = tag("img", "embed-image", ""); im.src = e.image.url; card.appendChild(im); }
+  pv.appendChild(card);
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function addField(name = "", value = "", inline = true) {
+  if (fields.length >= 25) { toast("Максимум 25 полей", false); return; }
+  fields.push({ name, value, inline });
+  renderFields();
+}
+
+function renderFields() {
+  const box = $("fields");
+  box.innerHTML = "";
+  fields.forEach((f, i) => {
+    const item = tag("div", "field-item");
+    const row = tag("div", "row");
+    const nameDiv = tag("div", "");
+    nameDiv.appendChild(tag("div", "mini", "НАЗВАНИЕ"));
+    const ni = document.createElement("input");
+    ni.type = "text"; ni.maxLength = 256; ni.placeholder = "Название";
+    ni.value = f.name;
+    ni.oninput = () => { fields[i].name = ni.value; renderPreview(); };
+    nameDiv.appendChild(ni);
+    const valDiv = tag("div", "");
+    valDiv.appendChild(tag("div", "mini", "ЗНАЧЕНИЕ"));
+    const vi = document.createElement("input");
+    vi.type = "text"; vi.maxLength = 1024; vi.placeholder = "Значение";
+    vi.value = f.value;
+    vi.oninput = () => { fields[i].value = vi.value; renderPreview(); };
+    valDiv.appendChild(vi);
+    const ib = tag("div", "inlinebox");
+    const chk = document.createElement("input");
+    chk.type = "checkbox"; chk.checked = f.inline;
+    chk.onchange = () => { fields[i].inline = chk.checked; renderPreview(); };
+    ib.appendChild(chk); ib.appendChild(document.createTextNode("в строке"));
+    const del = document.createElement("button");
+    del.className = "btn danger"; del.textContent = "✕";
+    del.onclick = () => { fields.splice(i, 1); renderFields(); renderPreview(); };
+    row.appendChild(nameDiv); row.appendChild(valDiv); row.appendChild(ib); row.appendChild(del);
+    item.appendChild(row);
+    box.appendChild(item);
+  });
+}
+
+function buildPayload() {
+  const emb = buildEmbed();
+  const embeds = Object.keys(emb).length ? [emb] : [];
+  const p = { content: $("f_content").value || "", embeds };
+  const t = targetInfo();
+  return Object.assign(t, p);
+}
+
+async function sendMsg() {
+  const p = buildPayload();
+  if (mode === "webhook") {
+    if (!p.webhook_url) return toast("Введите Webhook URL", false);
+    const r = await api("/api/webhook/send", p);
+    if (r.data && r.data.ok) toast("✅ Отправлено" + (r.data.data && r.data.data.id ? " (id " + r.data.data.id + ")" : ""), true);
+    else toast("❌ " + ((r.data && (r.data.error || JSON.stringify(r.data.data))) || r.status), false);
+  } else {
+    if (!p.channel_id) return toast("Выберите канал", false);
+    const r = await api("/api/bot/send", p);
+    if (r.data && r.data.ok) { toast("✅ Отправлено (id " + r.data.message_id + ")", true); $("msg_id").value = r.data.message_id; }
+    else toast("❌ " + ((r.data && r.data.error) || r.status), false);
+  }
+}
+
+async function editMsg() {
+  const p = buildPayload();
+  p.message_id = $("msg_id").value.trim();
+  if (!p.message_id) return toast("Укажите ID сообщения", false);
+  if (mode === "webhook") {
+    if (!p.webhook_url) return toast("Введите Webhook URL", false);
+    const r = await api("/api/webhook/edit", p);
+    if (r.data && r.data.ok) toast("✅ Сообщение обновлено", true);
+    else toast("❌ " + ((r.data && (r.data.error || JSON.stringify(r.data.data))) || r.status), false);
+  } else {
+    if (!p.channel_id) return toast("Выберите канал", false);
+    const r = await api("/api/bot/edit", p);
+    if (r.data && r.data.ok) toast("✅ Сообщение обновлено", true);
+    else toast("❌ " + ((r.data && r.data.error) || r.status), false);
+  }
+}
+
+async function loadMsg() {
+  const mid = $("msg_id").value.trim();
+  if (!mid) return toast("Укажите ID сообщения", false);
+  let r;
+  if (mode === "webhook") {
+    if (!$("wh_url").value.trim()) return toast("Введите Webhook URL", false);
+    r = await api("/api/webhook/fetch", { webhook_url: $("wh_url").value.trim(), message_id: mid });
+  } else {
+    if (!$("sel_channel").value) return toast("Выберите канал", false);
+    r = await api("/api/bot/fetch", { channel_id: $("sel_channel").value, message_id: mid });
+  }
+  const data = r.data && r.data.ok ? r.data.data : null;
+  if (!data) return toast("❌ Не удалось загрузить: " + ((r.data && (r.data.error || JSON.stringify(r.data.data))) || r.status), false);
+  $("f_content").value = data.content || "";
+  const e = (data.embeds && data.embeds[0]) || {};
+  $("f_title").value = e.title || "";
+  $("f_desc").value = e.description || "";
+  $("f_color").value = e.color === undefined || e.color === null ? "" : "#" + e.color.toString(16).padStart(6, "0");
+  $("f_ts").checked = Boolean(e.timestamp);
+  $("f_author_name").value = (e.author && e.author.name) || "";
+  $("f_author_icon").value = (e.author && e.author.icon_url) || "";
+  $("f_author_url").value = (e.author && e.author.url) || "";
+  $("f_footer_text").value = (e.footer && e.footer.text) || "";
+  $("f_footer_icon").value = (e.footer && e.footer.icon_url) || "";
+  $("f_thumb").value = (e.thumbnail && e.thumbnail.url) || "";
+  $("f_image").value = (e.image && e.image.url) || "";
+  fields = (e.fields || []).map((f) => ({ name: f.name, value: f.value || "", inline: Boolean(f.inline) }));
+  renderFields();
+  renderColor();
+  renderPreview();
+  toast("✅ Сообщение загружено", true);
+}
+
+(async function init() {
+  $("btn_login").onclick = async () => {
+    if (await doLogin()) { $("login").style.display = "none"; await bootInit(); }
+    else toast("Неверный пароль", false);
+  };
+  $("login_pw").addEventListener("keydown", (e) => { if (e.key === "Enter") $("btn_login").click(); });
+
+  if (PANEL_LOGIN) { $("login").style.display = "flex"; $("login_pw").focus(); return; }
+  await bootInit();
+})();
+
+async function bootInit() {
+  addField();
+  renderFields();
+  const s = await api("/api/status");
+  const st = $("status");
+  if (s.data && s.data.bot_online) {
+    st.textContent = "бот онлайн: " + s.data.bot_name;
+    st.className = "badge ok";
+    $("guildname").textContent = "сервер: " + (s.data.guild_name || "—");
+  } else {
+    st.textContent = "бот офлайн";
+    st.className = "badge off";
+  }
+  refreshChannels();
+  renderPreview();
+}
+</script>
+</body>
+</html>

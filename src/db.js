@@ -1,0 +1,259 @@
+import { DatabaseSync } from "node:sqlite";
+import { randomInt } from "node:crypto";
+import { DB_PATH, LEVELS } from "./config.js";
+
+export const XP_MIN = 15;
+export const XP_MAX = 25;
+
+let db;
+
+function initDb() {
+  db = new DatabaseSync(DB_PATH);
+  db.exec("PRAGMA journal_mode=WAL");
+  db.exec("PRAGMA busy_timeout=10000");
+  db.exec(`CREATE TABLE IF NOT EXISTS members (
+    guild_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    points INTEGER NOT NULL DEFAULT 0,
+    xp INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (guild_id, user_id)
+  )`);
+  db.exec(`CREATE TABLE IF NOT EXISTS counters (
+    channel TEXT NOT NULL,
+    name TEXT NOT NULL,
+    value INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (channel, name)
+  )`);
+  db.exec(`CREATE TABLE IF NOT EXISTS season_members (
+    guild_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    points INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (guild_id, user_id)
+  )`);
+  db.exec(`CREATE TABLE IF NOT EXISTS birthdays (
+    user_id INTEGER PRIMARY KEY,
+    month INTEGER NOT NULL,
+    day INTEGER NOT NULL
+  )`);
+  db.exec(`CREATE TABLE IF NOT EXISTS giveaways (
+    id INTEGER PRIMARY KEY,
+    title TEXT,
+    prize TEXT,
+    description TEXT,
+    winner_count INTEGER,
+    end_time REAL,
+    channel_id INTEGER,
+    guild_id INTEGER,
+    message_id INTEGER,
+    author_id INTEGER,
+    min_days INTEGER DEFAULT 0,
+    participants TEXT DEFAULT '[]',
+    status TEXT DEFAULT 'active'
+  )`);
+  const cols = db.prepare("PRAGMA table_info(members)").all().map((r) => r.name);
+  if (!cols.includes("xp")) {
+    db.exec("ALTER TABLE members ADD COLUMN xp INTEGER NOT NULL DEFAULT 0");
+    db.exec("UPDATE members SET xp = points * 20 WHERE xp = 0 AND points > 0");
+  }
+  db.exec("CREATE INDEX IF NOT EXISTS idx_members_guild_points ON members (guild_id, points DESC)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_season_members_guild_points ON season_members (guild_id, points DESC)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_counters_channel ON counters (channel)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_giveaways_status ON giveaways (status)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_giveaways_message ON giveaways (message_id)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_giveaways_end ON giveaways (end_time)");
+}
+initDb();
+
+export function addMessage(guild_id, user_id) {
+  const xp_gain = randomInt(XP_MIN, XP_MAX + 1);
+  db.prepare(
+    `INSERT INTO members (guild_id, user_id, points, xp)
+     VALUES (?, ?, 1, ?)
+     ON CONFLICT(guild_id, user_id) DO UPDATE SET points = points + 1, xp = xp + ?`
+  ).run(guild_id, user_id, xp_gain, xp_gain);
+  return db
+    .prepare("SELECT points, xp FROM members WHERE guild_id = ? AND user_id = ?")
+    .get(guild_id, user_id);
+}
+
+export function getPoints(guild_id, user_id) {
+  const row = getStats(guild_id, user_id);
+  return row ? row.points : 0;
+}
+
+export function getStats(guild_id, user_id) {
+  return db
+    .prepare("SELECT points, xp FROM members WHERE guild_id = ? AND user_id = ?")
+    .get(guild_id, user_id);
+}
+
+export function getLeaderboard(guild_id, limit = 10) {
+  return db
+    .prepare("SELECT user_id, points FROM members WHERE guild_id = ? ORDER BY points DESC LIMIT ?")
+    .all(guild_id, limit);
+}
+
+export function levelIndexFor(points) {
+  let idx = -1;
+  for (let i = 0; i < LEVELS.length; i++) {
+    const lvl = LEVELS[i];
+    if (points >= lvl.messages) idx = i;
+    else break;
+  }
+  return idx;
+}
+
+export function xpToNextLevel(level) {
+  return 5 * level * level + 50 * level + 100;
+}
+
+export function totalXpFor(level) {
+  let s = 0;
+  for (let i = 1; i < level; i++) s += xpToNextLevel(i);
+  return s;
+}
+
+export function levelForXp(xp) {
+  let level = 1;
+  while (xp >= totalXpFor(level + 1)) level++;
+  return level;
+}
+
+export function xpInLevel(xp, level) {
+  return xp - totalXpFor(level);
+}
+
+export function counterGet(channel, name) {
+  const row = db.prepare("SELECT value FROM counters WHERE channel = ? AND name = ?").get(channel, name);
+  return row ? row.value : 0;
+}
+
+export function counterAdd(channel, name, delta) {
+  db.prepare(
+    `INSERT INTO counters (channel, name, value) VALUES (?, ?, ?)
+     ON CONFLICT(channel, name) DO UPDATE SET value = value + ?`
+  ).run(channel, name, delta, delta);
+  return db.prepare("SELECT value FROM counters WHERE channel = ? AND name = ?").get(channel, name).value;
+}
+
+export function counterList(channel) {
+  return db
+    .prepare("SELECT name, value FROM counters WHERE channel = ? ORDER BY value DESC")
+    .all(channel);
+}
+
+export function seasonReset(guild_id) {
+  db.prepare("DELETE FROM season_members WHERE guild_id = ?").run(guild_id);
+}
+
+export function seasonAddMessage(guild_id, user_id) {
+  db.prepare(
+    `INSERT INTO season_members (guild_id, user_id, points)
+     VALUES (?, ?, 1)
+     ON CONFLICT(guild_id, user_id) DO UPDATE SET points = points + 1`
+  ).run(guild_id, user_id);
+}
+
+export function getSeasonLeaderboard(guild_id, limit = 10) {
+  return db
+    .prepare("SELECT user_id, points FROM season_members WHERE guild_id = ? ORDER BY points DESC LIMIT ?")
+    .all(guild_id, limit);
+}
+
+export function birthdaySet(user_id, month, day) {
+  db.prepare(
+    `INSERT INTO birthdays (user_id, month, day) VALUES (?, ?, ?)
+     ON CONFLICT(user_id) DO UPDATE SET month = ?, day = ?`
+  ).run(user_id, month, day, month, day);
+}
+
+export function birthdayGet(user_id) {
+  return db.prepare("SELECT month, day FROM birthdays WHERE user_id = ?").get(user_id);
+}
+
+export function birthdayRemove(user_id) {
+  db.prepare("DELETE FROM birthdays WHERE user_id = ?").run(user_id);
+}
+
+export function birthdaysAll() {
+  return db.prepare("SELECT user_id, month, day FROM birthdays").all();
+}
+
+const GIVEAWAY_COLS =
+  "id, title, prize, description, winner_count, end_time, channel_id, guild_id, message_id, author_id, min_days, participants, status";
+
+function rowToGiveaway(row) {
+  if (!row) return null;
+  return {
+    id: row.id,
+    title: row.title,
+    prize: row.prize,
+    description: row.description,
+    winner_count: row.winner_count,
+    end_time: row.end_time,
+    channel_id: row.channel_id,
+    guild_id: row.guild_id,
+    message_id: row.message_id,
+    author_id: row.author_id,
+    min_days: row.min_days,
+    participants: row.participants,
+    status: row.status,
+  };
+}
+
+export function giveawaySave(ga) {
+  db.prepare(
+    `INSERT INTO giveaways
+     (id, title, prize, description, winner_count, end_time, channel_id,
+      guild_id, message_id, author_id, min_days, participants, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET
+       end_time = excluded.end_time,
+       message_id = excluded.message_id,
+       participants = excluded.participants,
+       status = excluded.status`
+  ).run(
+    ga.id,
+    ga.title,
+    ga.prize,
+    ga.description,
+    ga.winner_count,
+    ga.end_time,
+    ga.channel_id,
+    ga.guild_id,
+    ga.message_id || 0,
+    ga.author_id || 0,
+    ga.min_days || 0,
+    ga.participants_json || "[]",
+    ga.status || "active"
+  );
+}
+
+export function giveawaysLoadActive() {
+  const rows = db
+    .prepare(`SELECT ${GIVEAWAY_COLS} FROM giveaways WHERE status = 'active'`)
+    .all();
+  return rows.map(rowToGiveaway);
+}
+
+export function giveawaysFindByMessage(message_id) {
+  const row = db
+    .prepare(`SELECT ${GIVEAWAY_COLS} FROM giveaways WHERE message_id = ?`)
+    .get(message_id);
+  return rowToGiveaway(row);
+}
+
+export function giveawayNextId() {
+  const row = db.prepare("SELECT COALESCE(MAX(id), 0) AS m FROM giveaways").get();
+  return row ? Number(row.m) : 0;
+}
+
+export function giveawaySetParticipants(giveaway_id, participants, status = "active") {
+  db.prepare("UPDATE giveaways SET participants = ?, status = ? WHERE id = ?").run(
+    JSON.stringify(participants),
+    status,
+    giveaway_id
+  );
+}
+
+export { db };
