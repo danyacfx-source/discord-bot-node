@@ -50,6 +50,10 @@ function initDb() {
     participants TEXT DEFAULT '[]',
     status TEXT DEFAULT 'active'
   )`);
+  db.exec(`CREATE TABLE IF NOT EXISTS kv (
+    key TEXT PRIMARY KEY,
+    value TEXT
+  )`);
   const cols = db.prepare("PRAGMA table_info(members)").all().map((r) => r.name);
   if (!cols.includes("xp")) {
     db.exec("ALTER TABLE members ADD COLUMN xp INTEGER NOT NULL DEFAULT 0");
@@ -329,6 +333,22 @@ export function giveawaySetParticipants(giveaway_id, participants, status = "act
     status,
     giveaway_id
   );
+}
+
+export function kvGet(key) {
+  const row = db.prepare("SELECT value FROM kv WHERE key = ?").get(key);
+  return row ? row.value : null;
+}
+
+export function kvSet(key, value) {
+  db.prepare(
+    `INSERT INTO kv (key, value) VALUES (?, ?)
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+  ).run(key, String(value));
+}
+
+export function kvDelete(key) {
+  db.prepare("DELETE FROM kv WHERE key = ?").run(key);
 }
 
 export { db };
