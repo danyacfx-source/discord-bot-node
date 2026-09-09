@@ -33,24 +33,36 @@ const cog = {
       log.warn("Sponsor", `Канал ${cfg.channel_id} не найден`);
       return;
     }
+    if (typeof channel.send !== "function") {
+      log.warn("Sponsor", `Канал ${cfg.channel_id} — не текстовый`);
+      return;
+    }
 
-    // Идемпотентность: если сообщение уже есть — не дублируем
+    // Идемпотентность: не создаём дубли
     const existing = db.kvGet("sponsor_message_id");
     if (existing) {
       try {
         const msg = await channel.messages.fetch(existing);
-        if (msg) {
-          const hasLink = msg.components?.[0]?.components?.some(
-            (c) => c.type === 2 && c.style === 5 && c.url === donateUrl
-          );
-          if (hasLink) return;
-          await msg.edit({ embeds: [cog._buildEmbed()], components: [cog._buildRow()] });
-          return;
-        }
+        if (msg) return; // сообщение уже есть
       } catch {
-        // сообщение удалено — создаём новое
+        // сообщение удалено или лежит в другом канале — ищем заново
       }
     }
+
+    // Сканируем последние сообщения канала (на случай потери kv-метки или смены канала)
+    try {
+      const recent = await channel.messages.fetch({ limit: 10 });
+      const found = recent.find(
+        (m) =>
+          m.author?.id === client.user?.id &&
+          m.components?.[0]?.components?.some((c) => c.type === 2 && c.style === 5 && c.url === donateUrl)
+      );
+      if (found) {
+        db.kvSet("sponsor_message_id", found.id);
+        log.info("Sponsor", `Найдено существующее сообщение спонсора ${found.id}`);
+        return;
+      }
+    } catch {}
 
     const msg = await channel.send({ embeds: [cog._buildEmbed()], components: [cog._buildRow()] });
     db.kvSet("sponsor_message_id", msg.id);
