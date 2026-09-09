@@ -1,0 +1,17 @@
+services:
+  bot:
+    build: .
+    container_name: bot-node
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PANEL_HOST=0.0.0.0
+      - PANEL_PORT=17890
+      - DB_DIR=/app/state
+      - DATA_DIR=/app/state
+    ports:
+      - "17890:17890"
+    volumes:
+      - ./state:/app/state
