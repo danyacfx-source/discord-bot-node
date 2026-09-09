@@ -54,13 +54,13 @@ export function fmtNum(n) {
   return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }
 
-export function updatePresence(client) {
+export async function updatePresence(client) {
   if (!client?.user) return;
   const live = activeStream();
   const watching = live?.live
     ? `🔴 ${live.title || live.platform} · ${fmtNum(live.viewers)} зрит.`
     : "🔴 стрим офлайн";
-  client.user
-    .setActivity({ name: watching, type: 3 })
-    .catch(() => {});
+  try {
+    await client.user.setActivity({ name: watching, type: 3 });
+  } catch {}
 }
