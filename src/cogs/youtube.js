@@ -73,7 +73,7 @@ async function checkNewVideos() {
       }
 
       if (notifyId && knownVideoIds.size > 1) {
-        const ch = bot.channels.cache.get(notifyId);
+        const ch = bot.channels.cache.get(String(notifyId));
         if (!ch) continue;
         const embed = new EmbedBuilder()
           .setTitle(`📹 Новое видео: ${snippet.title || "?"}`)

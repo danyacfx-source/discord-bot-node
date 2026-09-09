@@ -1,4 +1,4 @@
-import http from "node:http";
+﻿import http from "node:http";
 import { createHash, randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -145,7 +145,7 @@ async function handleChannels(req, res) {
   const me = guild.members.me;
   const channels = [];
   for (const c of guild.channels.cache.values()) {
-    if (c.type !== 0) continue; // текст
+    if (c.type !== 0) continue; // С‚РµРєСЃС‚
     if (!me?.permissionsIn(c).has(0x800)) continue; // SendMessages
     channels.push({
       id: String(c.id),
@@ -218,7 +218,7 @@ async function handleBotSend(req, res) {
     return json(res, { error: e.text }, e.status);
   }
   const data = await readBody(req);
-  const channel = bot.channels.cache.get(BigInt(data.channel_id || 0));
+  const channel = bot.channels.cache.get(String(data.channel_id || ""));
   if (!channel) return json(res, { error: "channel not found" }, 404);
   const embeds = embedsFromClient(data);
   const content = data.content || "";
@@ -242,7 +242,7 @@ async function handleBotEdit(req, res) {
     return json(res, { error: e.text }, e.status);
   }
   const data = await readBody(req);
-  const channel = bot.channels.cache.get(BigInt(data.channel_id || 0));
+  const channel = bot.channels.cache.get(String(data.channel_id || ""));
   const messageId = BigInt(data.message_id || 0);
   if (!channel) return json(res, { error: "channel not found" }, 404);
   if (!messageId) return json(res, { error: "message_id required" }, 400);
@@ -268,7 +268,7 @@ async function handleBotFetch(req, res) {
     return json(res, { error: e.text }, e.status);
   }
   const data = await readBody(req);
-  const channel = bot.channels.cache.get(BigInt(data.channel_id || 0));
+  const channel = bot.channels.cache.get(String(data.channel_id || ""));
   const messageId = BigInt(data.message_id || 0);
   if (!channel) return json(res, { error: "channel not found" }, 404);
   if (!messageId) return json(res, { error: "message_id required" }, 400);
@@ -336,7 +336,7 @@ export async function start(botClient) {
       resolve(server);
     });
     server.on("error", (e) => {
-      console.error(`[WEBPANEL] Не удалось занять порт ${PANEL_PORT}: ${e.message}`);
+      console.error(`[WEBPANEL] РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РЅСЏС‚СЊ РїРѕСЂС‚ ${PANEL_PORT}: ${e.message}`);
       resolve(server);
     });
   });

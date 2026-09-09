@@ -47,7 +47,7 @@ const cog = {
     // on_ready — автонастройка ролей
     registry.event("ready", async () => {
       if (!ROLE_SETTINGS || !GUILD_ID) return;
-      const guild = (await registry.client.guilds.fetch(GUILD_ID)).catch?.(null) || registry.client.guilds.cache.get(GUILD_ID);
+      const guild = (await registry.client.guilds.fetch(String(GUILD_ID))).catch?.(null) || registry.client.guilds.cache.get(String(GUILD_ID));
       if (!guild) return;
       const botMember = await guild.members.fetchMe().catch(() => null);
       if (!botMember) return;

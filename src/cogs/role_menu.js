@@ -59,7 +59,7 @@ async function applyRoles(interaction, add) {
 }
 
 async function ensurePanel(client) {
-  const channel = client.channels.cache.get(cfg.channel_id);
+  const channel = client.channels.cache.get(String(cfg.channel_id || ""));
   if (!channel) return;
   let roleNames = cfg.roles || [];
   if (!roleNames.length) return;

@@ -77,7 +77,7 @@ async function drain() {
 }
 
 async function postToDiscord(bot, entry) {
-  const channel = bot.channels.cache.get(logChannelId);
+  const channel = bot.channels.cache.get(String(logChannelId));
   if (!channel) return;
   let msg = sanitize(String(entry.message || ""));
   if (msg.length > 900) msg = msg.slice(0, 900) + "…";

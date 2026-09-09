@@ -67,7 +67,7 @@ function parseDurationSeconds(duration) {
 function notifyChannel() {
   const id = cfg.notify_channel_id;
   if (!id) return null;
-  return bot.channels.cache.get(id) || null;
+  return bot.channels.cache.get(String(id)) || null;
 }
 
 async function checkShorts() {

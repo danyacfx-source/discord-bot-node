@@ -95,7 +95,7 @@ const cog = {
         const summary = awarded.join("\n");
         const announceId = SEASON.announce_channel_id || 0;
         if (announceId) {
-          const channel = guild.channels.cache.get(announceId);
+          const channel = guild.channels.cache.get(String(announceId));
           if (channel) {
             const embed = new EmbedBuilder()
               .setTitle("🏆 Итоги сезона!")

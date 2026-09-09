@@ -501,7 +501,7 @@ const cog = {
       }
       const embed = draft.toEmbed();
       const targetId = draft.targetChannelId || interaction.channelId;
-      const target = interaction.guild.channels.cache.get(targetId);
+      const target = interaction.guild.channels.cache.get(String(targetId));
       if (!target) {
         await interaction.reply({ content: "Канал не найден.", ephemeral: true });
         return;

@@ -45,7 +45,7 @@ const cog = {
 
   async _findTarget(client) {
     const channelId = cfg.channel_id || 0;
-    const channel = client.channels.cache.get(channelId);
+    const channel = client.channels.cache.get(channelId ? String(channelId) : null);
     if (!channel) return null;
     const messageId = cfg.message_id || 0;
     if (messageId) {
@@ -66,7 +66,7 @@ const cog = {
     const reactionEmoji = reaction.emoji?.name || reaction.emoji?.toString?.() || "";
     if (reactionEmoji !== emoji) return;
     if (user.bot) return;
-    const guild = client.guilds.cache.get(cfg.guild_id || reaction.message?.guild?.id);
+    const guild = client.guilds.cache.get(String(cfg.guild_id || "") || String(reaction.message?.guild?.id || ""));
     if (!guild) return;
     let member;
     try {

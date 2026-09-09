@@ -34,9 +34,9 @@ function fmtNum(n) {
 async function announce() {
   const channelId = cfg.channel_id || 0;
   if (!channelId) return;
-  const channel = bot.channels.cache.get(channelId);
+  const channel = bot.channels.cache.get(String(channelId));
   if (!channel) return;
-  const guild = GUILD_ID ? bot.guilds.cache.get(GUILD_ID) : null;
+  const guild = GUILD_ID ? bot.guilds.cache.get(String(GUILD_ID)) : null;
   const now = new Date();
   const rows = db.birthdaysAll();
   const hits = rows.filter((r) => r.month === now.getMonth() + 1 && r.day === now.getDate());

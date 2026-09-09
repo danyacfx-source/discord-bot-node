@@ -80,7 +80,7 @@ const cog = {
           return;
         }
         const lines = rows.map((row, idx) => {
-          const member = interaction.guild.members.cache.get(row.user_id);
+          const member = interaction.guild.members.cache.get(String(row.user_id));
           const name = member ? member.displayName : `Пользователь ${row.user_id}`;
           return `**${idx + 1}.** ${name} — ${row.points} сообщений`;
         });

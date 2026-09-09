@@ -38,7 +38,7 @@ function cid(key) {
 function cnl(key) {
   const id = cid(key);
   if (!id || !bot) return null;
-  return bot.channels.cache.get(id) || null;
+  return bot.channels.cache.get(String(id)) || null;
 }
 
 function enabled() {

@@ -204,7 +204,7 @@ const cog = {
       log.error("Giveaways", "Не удалось сохранить итог", e);
     }
 
-    const channel = client.channels.cache.get(ga.channel_id);
+    const channel = client.channels.cache.get(String(ga.channel_id));
     if (!channel) return;
     try {
       if (ga.message_id) {

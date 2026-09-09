@@ -389,7 +389,7 @@ async function parseTarget(vc, raw, interaction) {
     await interaction.reply({ content: "Укажите ID участника.", ephemeral: true });
     return null;
   }
-  const member = interaction.guild.members.cache.get(uid);
+  const member = interaction.guild.members.cache.get(String(uid));
   if (!member) {
     await interaction.reply({ content: "Участник не найден.", ephemeral: true });
     return null;

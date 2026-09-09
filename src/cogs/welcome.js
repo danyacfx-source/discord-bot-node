@@ -104,7 +104,7 @@ const cog = {
       if (cfg[enabledKey] === false) return;
       const cid = cfg.welcome_channel_id;
       if (!cid) return;
-      const channel = member.guild.channels.cache.get(cid);
+      const channel = member.guild.channels.cache.get(String(cid));
       if (!channel) return;
 
       try {
@@ -131,7 +131,7 @@ const cog = {
       if (cfg[enabledKey] === false) return;
       const cid = cfg.leave_channel_id;
       if (!cid) return;
-      const channel = member.guild.channels.cache.get(cid);
+      const channel = member.guild.channels.cache.get(String(cid));
       if (!channel) return;
 
       try {

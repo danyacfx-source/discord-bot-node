@@ -137,7 +137,7 @@ async function checkOnce() {
   const todayKey = `${now.getUTCFullYear()}-${pad2(now.getUTCMonth() + 1)}-${pad2(now.getUTCDate())}`;
   const channelId = cfg.channel_id;
   if (!channelId) return;
-  const channel = bot.channels.cache.get(channelId);
+  const channel = bot.channels.cache.get(String(channelId));
   if (!channel) return;
 
   const reminderMin = data.reminder_minutes ?? 30;
