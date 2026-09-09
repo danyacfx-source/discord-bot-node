@@ -1,15 +1,12 @@
 import { EmbedBuilder } from "discord.js";
 import { CONFIG } from "../config.js";
+import { setStream, updatePresence, fmtNum } from "../stream_state.js";
 import { log } from "../notify.js";
 
 const cfg = CONFIG.kick || {};
 const liveCfg = cfg.live || {};
 const SLUG = liveCfg.channel || cfg.channel || "dendosich";
 const POLL_MS = Math.max(30, liveCfg.poll_interval_seconds || 300) * 1000;
-
-function fmtNum(n) {
-  return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
-}
 
 async function fetchStatus() {
   const res = await fetch(`https://kick.com/api/v2/channels/${encodeURIComponent(SLUG)}`, {
@@ -91,10 +88,20 @@ const cog = {
       log.warn("Kick", `Ошибка запроса статуса: ${e.message}`);
       return;
     }
+    setStream("kick", {
+      live: status.isLive,
+      viewers: status.viewers,
+      title: status.title,
+      category: status.category,
+      thumbnail: status.thumbnail,
+      startedAt: status.startedAt,
+    });
+
     const nowLive = status.isLive;
     if (cog._wasLive === null) {
       // Первый опрос — только учим текущее состояние, не постим
       cog._wasLive = nowLive;
+      updatePresence(client);
       return;
     }
     if (nowLive && !cog._wasLive) {
@@ -103,6 +110,7 @@ const cog = {
       );
     }
     cog._wasLive = nowLive;
+    updatePresence(client);
   },
 
   async _notifyLive(client, status) {

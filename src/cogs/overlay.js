@@ -2,6 +2,7 @@ import http from "node:http";
 import crypto from "node:crypto";
 import { OVERLAY, CONFIG } from "../config.js";
 import * as db from "../db.js";
+import { activeStream, fmtNum, CHANNELS } from "../stream_state.js";
 import { log } from "../notify.js";
 
 function timingSafeEqual(a, b) {
@@ -33,15 +34,22 @@ const PAGE = `<!DOCTYPE html>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:transparent;font-family:'Segoe UI',Roboto,Arial,sans-serif;color:#fff;width:420px;overflow:hidden}
 .card{background:rgba(20,22,31,.82);border-left:4px solid #9146ff;border-radius:10px;padding:14px 16px;margin-bottom:12px;box-shadow:0 4px 18px rgba(0,0,0,.45);backdrop-filter:blur(4px)}
+.card.live{border-left-color:#e74c3c}
 .card h3{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:#a7a9be;margin-bottom:6px}
 .card .value{font-size:16px;line-height:1.5;white-space:pre-wrap;word-break:break-word}
 .card .empty{color:#6a6c82;font-size:14px}
 .counters{font-size:14px;line-height:1.6}.counters b{color:#f1c40f}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#e74c3c;margin-right:6px;animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.25}}
 </style></head><body><div id="root"></div>
 <script>
 async function load(){try{const r=await fetch('/overlay/api?token=__TOKEN__');const d=await r.json();let h='';
-if(d.counters&&d.counters.length){h+='<div class="card"><h3>📦 Счётчики</h3><div class="counters">';for(const c of d.counters)h+='<div><b>'+esc(c.name)+'</b>: '+c.value+'</div>';h+='</div></div>'}
-if(d.donation_goal&&d.donation_goal.enabled){h+='<div class="card"><h3>💰 '+esc(d.donation_goal.label)+'</h3><div class="value">'+d.donation_goal.current+' / '+d.donation_goal.target+' '+esc(d.donation_goal.currency)+'</div></div>'}
+if(d.stream&&d.stream.live){h+='<div class="card live"><h3>🔴 Стрим · '+esc(d.stream.platform)+'</h3><div class="value"><span class="dot"></span><b>'+esc(d.stream.title)+'</b></div>';
+h+='<div class="counters">👁 Зрители: <b>'+esc(d.stream.viewers)+'</b> · Пик: <b>'+esc(d.stream.peak)+'</b></div>';
+if(d.stream.category)h+='<div class="counters">🎮 '+esc(d.stream.category)+'</div>';h+='</div>'}
+else if(d.stream){h+='<div class="card"><h3>Стрим</h3><div class="empty">Офлайн</div></div>'}
+if(d.counters&&d.counters.length){h+='<div class="card"><h3>📦 Счётчики</h3><div class="counters">';for(const c of d.counters)h+='<div><b>'+esc(c.name)+'</b>: '+esc(c.value)+'</div>';h+='</div></div>'}
+if(d.donation_goal&&d.donation_goal.enabled){h+='<div class="card"><h3>💰 '+esc(d.donation_goal.label)+'</h3><div class="value">'+esc(d.donation_goal.current)+' / '+esc(d.donation_goal.target)+' '+esc(d.donation_goal.currency)+'</div></div>'}
 document.getElementById('root').innerHTML=h;}catch(e){}}
 function esc(s){const d=document.createElement('div');d.textContent=s==null?'':String(s);return d.innerHTML}
 load();setInterval(load,5000);
@@ -92,7 +100,21 @@ const cog = {
           const kickChannel = (CONFIG.kick || {}).channel || "";
           const counters = db.counterList(kickChannel).filter((c) => c.name !== "tod");
           const dg = OVERLAY.donation_goal || {};
+          const stream = activeStream();
           const payload = {
+            stream: stream
+              ? {
+                  platform: stream.platform,
+                  live: stream.live,
+                  viewers: stream.viewers,
+                  peak: stream.peak,
+                  title: stream.title,
+                  category: stream.category,
+                  startedAt: stream.startedAt,
+                  url: stream.url,
+                }
+              : null,
+            channels: CHANNELS,
             counters,
             donation_goal: {
               enabled: !!dg.enabled,

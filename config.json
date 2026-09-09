@@ -714,5 +714,16 @@
         "enabled": true,
         "channel_id": "1535055498020126750",
         "message": "Поддержи стрим и получай бонусы! Нажми на кнопку ниже ⭐"
+    },
+    "twitch": {
+        "enabled": true,
+        "channel": "dendosicsh",
+        "client_id": "",
+        "client_secret": "",
+        "live": {
+            "channel_id": "1535055498020126750",
+            "ping_role_id": "1536723619366051901",
+            "poll_interval_seconds": 300
+        }
     }
 }
