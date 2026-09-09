@@ -97,10 +97,16 @@ async function main() {
     try {
       const payload = registry.getSlashPayload();
       const app = client.application;
-      await app.commands.set(payload);
       if (GUILD_ID) {
-        const g = client.guilds.cache.get(GUILD_ID);
-        if (g) await g.commands.set(payload);
+        const g = client.guilds.cache.get(String(GUILD_ID));
+        if (g) {
+          // Только гильд-команды: обновляются мгновенно и не дублируются с глобальными
+          const globalCmds = await app.commands.fetch();
+          if (globalCmds.size) await app.commands.set([]);
+          await g.commands.set(payload);
+        }
+      } else {
+        await app.commands.set(payload);
       }
       fileLog("INFO", `Синхронизировано команд: ${payload.length}`);
     } catch (e) {
