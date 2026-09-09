@@ -1,4 +1,4 @@
-import { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } from "discord.js";
+﻿import { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } from "discord.js";
 import * as db from "../db.js";
 import { CONFIG } from "../config.js";
 import { log } from "../notify.js";
@@ -48,7 +48,7 @@ const cog = {
             (c) => c.type === 2 && c.style === 5 && c.url === donateUrl
           );
           if (hasLink) return;
-          await msg.edit({ embeds: [cog._buildEmbed()], components: [cog._buildRow()] });
+          await msg.edit({ embeds: [cog._buildEmbed(client)], components: [cog._buildRow()] });
           log.info("Sponsor", `Кнопка обновлена на ${donateUrl} (${msg.id})`);
           return;
         }
@@ -72,20 +72,37 @@ const cog = {
       }
     } catch {}
 
-    const msg = await channel.send({ embeds: [cog._buildEmbed()], components: [cog._buildRow()] });
+    const msg = await channel.send({ embeds: [cog._buildEmbed(client)], components: [cog._buildRow()] });
     db.kvSet("sponsor_message_id", msg.id);
     log.info("Sponsor", `Кнопка «Стать спонсором» размещена в #${channel.name} (${msg.id})`);
   },
 
-  _buildEmbed() {
-    return new EmbedBuilder()
-      .setTitle("⭐ Поддержать стрим")
+  _buildEmbed(client) {
+    const bonuses = Array.isArray(cfg.bonuses) ? cfg.bonuses : [];
+    const embed = new EmbedBuilder()
+      .setTitle(cfg.title || "⭐ Поддержать стрим")
       .setDescription(
         cfg.message ||
           "Поддержи стрим и получай бонусы! Нажми на кнопку ниже, чтобы оформить спонсорство."
       )
       .setColor(0xf1c40f)
-      .setFooter({ text: "Спасибо за поддержку! ❤️" });
+      .setThumbnail(client?.user?.displayAvatarURL?.({ extension: "png", size: 256 }) ?? null)
+      .setTimestamp();
+
+    if (bonuses.length) {
+      embed.addFields({
+        name: "🎁 Что ты получаешь",
+        value: bonuses.map((b) => `▸ ${b}`).join("\n"),
+        inline: false,
+      });
+    }
+    embed.addFields({
+      name: "🔗 Ссылка",
+      value: `[Открыть страницу доната](${donateUrl})`,
+      inline: false,
+    });
+    embed.setFooter({ text: "Спасибо за поддержку! ❤️" });
+    return embed;
   },
 
   _buildRow() {
