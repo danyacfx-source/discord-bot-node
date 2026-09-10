@@ -195,10 +195,7 @@
     "placeholder": "Выбери роли…",
     "max_values": 10,
     "roles": [
-      "Стрим-оповещения",
-      "Сборки",
       "Tarkov",
-      "SQUAD",
       "War Thunder",
       "Minecraft"
     ]
