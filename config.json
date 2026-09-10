@@ -265,7 +265,8 @@
                                               "emoji":  "рџџў",
                                               "type":  "online"
                                           }
-                                      ]
+                                      ],
+                         "category_id":  "1543026204985008238"
                      },
     "discord_automod":  {
                             "enabled":  true,

@@ -37,24 +37,45 @@ const cog = {
     const channelsCfg = cfg.channels || [];
     if (!channelsCfg.length) return;
     const categoryName = cfg.category || "СТАТИСТИКА";
-    let category = guild.channels.cache.find(
-      (ch) => ch.type === 4 && ch.name === categoryName
-    );
-    if (!category) {
-      try {
-        category = await guild.channels.create({
-          name: categoryName,
-          type: 4,
-          reason: "Счётчики сервера",
-        });
-      } catch {
-        log.warn("ServerStats", `Нет прав создать категорию «${categoryName}» в ${guild.name}`);
+    const categoryID = cfg.category_id || "";
+    let category;
+    if (categoryID) {
+      category = guild.channels.cache.get(String(categoryID));
+      if (!category) {
+        log.warn("ServerStats", `Категория счётчиков не найдена (server_stats.category_id=${categoryID})`);
         return;
+      }
+    } else {
+      category = guild.channels.cache.find((ch) => ch.type === 4 && ch.name === categoryName);
+      if (!category) {
+        try {
+          category = await guild.channels.create({
+            name: categoryName,
+            type: 4,
+            reason: "Счётчики сервера",
+          });
+        } catch {
+          log.warn("ServerStats", `Нет прав создать категорию «${categoryName}» в ${guild.name}`);
+          return;
+        }
       }
     }
 
-    const members = guild.approximateMemberCount || guild.memberCount || 0;
-    const online = guild.approximatePresenceCount || 0;
+    const members = guild.memberCount || 0;
+    let online;
+    if (typeof guild.approximatePresenceCount === "number" && guild.approximatePresenceCount >= 0) {
+      online = guild.approximatePresenceCount;
+    } else {
+      // Для малых серверов Discord не отдаёт approximate-данные — считаем по presence
+      try {
+        await guild.members.fetch({ withPresences: true });
+      } catch {}
+      online = 0;
+      for (const [, m] of guild.members.cache) {
+        if (m.user.bot) continue;
+        if (m.presence && m.presence.status !== "offline") online++;
+      }
+    }
 
     for (const spec of channelsCfg) {
       const kind = spec.type || "members";
