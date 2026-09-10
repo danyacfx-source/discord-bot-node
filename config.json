@@ -742,11 +742,6 @@
                                            }
                           }
              },
-    "schedule":  {
-                     "enabled":  true,
-                     "channel_id":  "1535055498020126750",
-                     "reminder_minutes":  30
-                 },
     "sponsor":  {
                     "enabled":  true,
                     "channel_id":  "1547376296378507304",
