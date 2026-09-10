@@ -1,9 +1,5 @@
 import Database from "better-sqlite3";
-import { randomInt } from "node:crypto";
-import { DB_PATH, LEVELS } from "./config.js";
-
-export const XP_MIN = 15;
-export const XP_MAX = 25;
+import { DB_PATH } from "./config.js";
 
 let db;
 
@@ -15,7 +11,6 @@ function initDb() {
     guild_id TEXT NOT NULL,
     user_id TEXT NOT NULL,
     points INTEGER NOT NULL DEFAULT 0,
-    xp INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (guild_id, user_id)
   )`);
   db.exec(`CREATE TABLE IF NOT EXISTS counters (
@@ -54,11 +49,6 @@ function initDb() {
     key TEXT PRIMARY KEY,
     value TEXT
   )`);
-  const cols = db.prepare("PRAGMA table_info(members)").all().map((r) => r.name);
-  if (!cols.includes("xp")) {
-    db.exec("ALTER TABLE members ADD COLUMN xp INTEGER NOT NULL DEFAULT 0");
-    db.exec("UPDATE members SET xp = points * 20 WHERE xp = 0 AND points > 0");
-  }
   migrateIdColumnsToText();
   db.exec("CREATE INDEX IF NOT EXISTS idx_members_guild_points ON members (guild_id, points DESC)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_season_members_guild_points ON season_members (guild_id, points DESC)");
@@ -79,10 +69,9 @@ function migrateIdColumnsToText() {
         guild_id TEXT NOT NULL,
         user_id TEXT NOT NULL,
         points INTEGER NOT NULL DEFAULT 0,
-        xp INTEGER NOT NULL DEFAULT 0,
         PRIMARY KEY (guild_id, user_id)
       )`,
-      cast: "CAST(guild_id AS TEXT), CAST(user_id AS TEXT), points, xp",
+      cast: "CAST(guild_id AS TEXT), CAST(user_id AS TEXT), points",
     },
     {
       table: "season_members",
@@ -144,14 +133,13 @@ function migrateIdColumnsToText() {
 initDb();
 
 export function addMessage(guild_id, user_id) {
-  const xp_gain = randomInt(XP_MIN, XP_MAX + 1);
   db.prepare(
-    `INSERT INTO members (guild_id, user_id, points, xp)
-     VALUES (?, ?, 1, ?)
-     ON CONFLICT(guild_id, user_id) DO UPDATE SET points = points + 1, xp = xp + ?`
-  ).run(guild_id, user_id, xp_gain, xp_gain);
+    `INSERT INTO members (guild_id, user_id, points)
+     VALUES (?, ?, 1)
+     ON CONFLICT(guild_id, user_id) DO UPDATE SET points = points + 1`
+  ).run(guild_id, user_id);
   return db
-    .prepare("SELECT points, xp FROM members WHERE guild_id = ? AND user_id = ?")
+    .prepare("SELECT points FROM members WHERE guild_id = ? AND user_id = ?")
     .get(guild_id, user_id);
 }
 
@@ -162,7 +150,7 @@ export function getPoints(guild_id, user_id) {
 
 export function getStats(guild_id, user_id) {
   return db
-    .prepare("SELECT points, xp FROM members WHERE guild_id = ? AND user_id = ?")
+    .prepare("SELECT points FROM members WHERE guild_id = ? AND user_id = ?")
     .get(guild_id, user_id);
 }
 
@@ -170,36 +158,6 @@ export function getLeaderboard(guild_id, limit = 10) {
   return db
     .prepare("SELECT user_id, points FROM members WHERE guild_id = ? ORDER BY points DESC LIMIT ?")
     .all(guild_id, limit);
-}
-
-export function levelIndexFor(points) {
-  let idx = -1;
-  for (let i = 0; i < LEVELS.length; i++) {
-    const lvl = LEVELS[i];
-    if (points >= lvl.messages) idx = i;
-    else break;
-  }
-  return idx;
-}
-
-export function xpToNextLevel(level) {
-  return 5 * level * level + 50 * level + 100;
-}
-
-export function totalXpFor(level) {
-  let s = 0;
-  for (let i = 1; i < level; i++) s += xpToNextLevel(i);
-  return s;
-}
-
-export function levelForXp(xp) {
-  let level = 1;
-  while (xp >= totalXpFor(level + 1)) level++;
-  return level;
-}
-
-export function xpInLevel(xp, level) {
-  return xp - totalXpFor(level);
 }
 
 export function counterGet(channel, name) {

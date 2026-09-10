@@ -35,7 +35,6 @@ CONFIG.youtube.client_id = process.env.YOUTUBE_CLIENT_ID || CONFIG.youtube.clien
 CONFIG.youtube.client_secret = process.env.YOUTUBE_CLIENT_SECRET || CONFIG.youtube.client_secret || "";
 CONFIG.youtube.refresh_token = process.env.YOUTUBE_REFRESH_TOKEN || CONFIG.youtube.refresh_token || "";
 
-export const LEVELS = [...(CONFIG.levels || [])].sort((a, b) => a.messages - b.messages);
 export const EXTRA_ROLES = CONFIG.extra_roles || [];
 export const ROLE_SETTINGS = CONFIG.role_settings || {};
 export const CHANNELS = CONFIG.channels || {};

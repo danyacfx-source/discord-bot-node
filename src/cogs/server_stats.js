@@ -53,16 +53,8 @@ const cog = {
       }
     }
 
-    let members = 0;
-    let online = 0;
-    try {
-      await guild.members.fetch();
-    } catch {}
-    for (const [, m] of guild.members.cache) {
-      if (m.user.bot) continue;
-      members++;
-      if (m.presence && m.presence.status !== "offline") online++;
-    }
+    const members = guild.approximateMemberCount || guild.memberCount || 0;
+    const online = guild.approximatePresenceCount || 0;
 
     for (const spec of channelsCfg) {
       const kind = spec.type || "members";

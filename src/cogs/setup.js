@@ -1,5 +1,5 @@
 ﻿import { PermissionFlagsBits } from "discord.js";
-import { CHANNELS, EXTRA_ROLES, GUILD_ID, ROLE_SETTINGS, LEVELS } from "../config.js";
+import { CHANNELS, EXTRA_ROLES, GUILD_ID, ROLE_SETTINGS } from "../config.js";
 import { log } from "../notify.js";
 
 function norm(name) {
@@ -78,7 +78,7 @@ const cog = {
         }
         const botTop = botMember.roles.highest;
 
-        const allRoles = [...(LEVELS || []).map((l) => l.role_name), ...EXTRA_ROLES];
+        const allRoles = [...EXTRA_ROLES];
         const created = [];
         const existing = [];
 
