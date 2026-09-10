@@ -3,6 +3,14 @@ import { log } from "../notify.js";
 
 const cfg = CONFIG.server_stats || {};
 
+const EMOJI_FALLBACK = { members: "👥", online: "🟢" };
+
+// Защита от битых эмодзи в конфиге (mojibake): берём emoji только если это настоящий символ за пределами BMP
+function cleanEmoji(raw, fallback) {
+  if (typeof raw === "string" && raw.length && raw.codePointAt(0) > 0x2fff) return raw;
+  return fallback;
+}
+
 const cog = {
   name: "ServerStats",
   _started: false,
@@ -77,36 +85,35 @@ const cog = {
       }
     }
 
-    for (const spec of channelsCfg) {
+    const counterChannels = [...category.children.cache.values()]
+      .filter((ch) => ch.type === 2)
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+
+    for (let i = 0; i < channelsCfg.length; i++) {
+      const spec = channelsCfg[i];
       const kind = spec.type || "members";
       const value = kind === "online" ? online : members;
-      const emoji = spec.emoji || "";
+      const emoji = cleanEmoji(spec.emoji, EMOJI_FALLBACK[kind] || "");
       const rawName = emoji ? `${emoji} ${value}` : String(value);
       const name = rawName.slice(0, 100);
 
-      let channel;
-      if (emoji) {
-        channel = category.children.cache.find(
-          (ch) => ch.type === 2 && ch.name.startsWith(emoji)
-        );
-      } else {
-        channel = category.children.cache.find(
-          (ch) => ch.type === 2 && ch.name === name
-        );
-      }
+      // Берём канал по позиции: 0-й канал категории -> первый счётчик, 1-й -> второй.
+      // Так не создаём дубли даже если старые каналы имеют кривое имя.
+      let channel = counterChannels[i];
 
       if (!channel) {
         try {
-          await guild.channels.create({
+          channel = await guild.channels.create({
             name,
             type: 2,
             parent: category.id,
             reason: "Счётчик сервера",
           });
+          counterChannels.push(channel);
         } catch {
           log.warn("ServerStats", `Нет прав создать канал счётчика в ${guild.name}`);
+          continue;
         }
-        continue;
       }
 
       if (channel.name !== name) {
@@ -115,6 +122,16 @@ const cog = {
         } catch {
           log.warn("ServerStats", `Нет прав переименовать канал в ${guild.name}`);
         }
+      }
+    }
+
+    // Лишние счётчики сверх конфига (дубли от старых версий) — удаляем
+    for (const extra of counterChannels.slice(channelsCfg.length)) {
+      try {
+        await extra.delete("Очистка лишних счётчиков");
+        log.info("ServerStats", `Удалён лишний счётчик ${extra.name} (${extra.id})`);
+      } catch {
+        log.warn("ServerStats", `Нет прав удалить лишний счётчик ${extra.name}`);
       }
     }
   },
