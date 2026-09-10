@@ -195,9 +195,10 @@
     "placeholder": "Выбери роли…",
     "max_values": 10,
     "roles": [
-      "Tarkov",
       "War Thunder",
-      "Minecraft"
+      "Minecraft",
+      "WARDOGS",
+      "Стрим-оповещения"
     ]
   },
   "rules_gate": {
