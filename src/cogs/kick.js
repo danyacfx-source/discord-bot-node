@@ -36,6 +36,7 @@ async function fetchStatus() {
   const live = data.livestream || null;
   return {
     isLive: Boolean(live && live.is_live),
+    live: Boolean(live && live.is_live),
     title: live?.session_title || "",
     viewers: live?.viewer_count ?? 0,
     category: live?.categories?.[0]?.name || "",
@@ -184,7 +185,7 @@ const cog = {
   },
 
   _buildEmbed(status) {
-    const live = !!status.live;
+    const live = !!(status.isLive ?? status.live);
     if (live) {
       const embed = new EmbedBuilder()
         .setTitle("🔴 Мы в эфире!")
