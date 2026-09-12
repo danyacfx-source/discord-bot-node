@@ -739,5 +739,17 @@
       "ping_role_id": "1536723619366051901",
       "poll_interval_seconds": 300
     }
+  },
+  "ai": {
+    "enabled": true,
+    "api_key": "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",
+    "channels": ["1534711421026304132"],
+    "cooldown_seconds": 45,
+    "model": "meta-llama/llama-3.3-70b-instruct:free",
+    "temperature": 0.9,
+    "max_tokens": 220,
+    "history_size": 12,
+    "timeout_seconds": 45,
+    "system_prompt": ""
   }
 }
