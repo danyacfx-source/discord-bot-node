@@ -3,6 +3,26 @@
   "bot_name": "Милый Килла",
   "guild_id": "1524743223866556456",
   "owner_id": "635370416252125184",
+  "kick_mod": {
+    "enabled": true,
+    "channel": "dendosich",
+    "allowed_roles": [
+      "Owner",
+      "Moderator"
+    ],
+    "delete_messages": true,
+    "banned_words": [
+      "1488",
+      "нага",
+      "нига",
+      "nigger",
+      "nigga",
+      "заходи на",
+      "бесплатно",
+      "ссылка в описании",
+      "подпишись на"
+    ]
+  },
   "extra_roles": [
     "Сборщик",
     "СБЭУ шприц",
