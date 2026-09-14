@@ -4,7 +4,8 @@ import { log } from "../notify.js";
 
 const cfg = CONFIG.permissions || {};
 const categories = cfg.categories || {};
-const autoApply = cfg.auto_apply !== false;
+// auto_apply should only be true when explicitly enabled to avoid unexpected overwrites
+const autoApply = cfg.auto_apply === true;
 
 function resolveRole(guild, name) {
   if (name === "@everyone") return guild.roles.everyone;

@@ -7,4 +7,8 @@ data/
 state/
 .bot.lock
 data.db
+data.db-wal
+data.db-shm
+data.db-journal
 config.json.orig
+config.local.json

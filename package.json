@@ -12,12 +12,17 @@
   "engines": {
     "node": ">=20.0.0"
   },
+  "engineStrict": true,
   "dependencies": {
     "better-sqlite3": "^11.10.0",
-    "discord.js": "^14.16.3",
-    "ws": "^8.21.3"
+    "discord.js": "^14.27.0",
+    "ws": "^8.18.1"
+  },
+  "overrides": {
+    "ws": "$ws"
   },
   "allowScripts": {
-    "better-sqlite3@11.10.0": true
-  }
+    "better-sqlite3": true
+  },
+  "betterSqlite3PrebuildFallback": "prebuild-install --runtime=napi || npm run build-release"
 }

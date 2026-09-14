@@ -7,7 +7,11 @@ const EMOJI_FALLBACK = { members: "👥", online: "🟢" };
 
 // Защита от битых эмодзи в конфиге (mojibake): берём emoji только если это настоящий символ за пределами BMP
 function cleanEmoji(raw, fallback) {
-  if (typeof raw === "string" && raw.length && raw.codePointAt(0) > 0x2fff) return raw;
+  if (typeof raw !== "string" || !raw.trim()) return fallback;
+  const s = raw.trim();
+  // allow single emoji or two-codepoint sequence (flag etc), reject plain ascii/mojibake
+  const cp = s.codePointAt(0);
+  if (cp > 0x2fff || /\p{Emoji}/u.test(s)) return s;
   return fallback;
 }
 
@@ -70,14 +74,20 @@ const cog = {
     }
 
     const members = guild.memberCount || 0;
+    // cache withPresences fetch: throttle to once per 5 min per guild to avoid expensive fetches
+    if (!cog._presenceCache) cog._presenceCache = new Map();
     let online;
     if (typeof guild.approximatePresenceCount === "number" && guild.approximatePresenceCount >= 0) {
       online = guild.approximatePresenceCount;
     } else {
-      // Для малых серверов Discord не отдаёт approximate-данные — считаем по presence
-      try {
-        await guild.members.fetch({ withPresences: true });
-      } catch {}
+      const now = Date.now();
+      const cached = cog._presenceCache.get(guild.id);
+      if (!cached || now - cached.ts > 5 * 60 * 1000) {
+        try {
+          await guild.members.fetch({ withPresences: true });
+          cog._presenceCache.set(guild.id, { ts: now });
+        } catch {}
+      }
       online = 0;
       for (const [, m] of guild.members.cache) {
         if (m.user.bot) continue;

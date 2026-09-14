@@ -12,7 +12,10 @@ const COGS_DIR = path.join(ROOT, "src", "cogs");
 function arg(name, dflt) {
   const i = process.argv.indexOf(`--${name}`);
   if (i === -1) return dflt;
-  return Number(process.argv[i + 1]) || dflt;
+  const raw = process.argv[i + 1];
+  if (raw === undefined) return dflt;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : dflt;
 }
 
 const SECONDS = arg("seconds", 8);
@@ -32,6 +35,11 @@ async function loadCogs() {
 console.log("Загружаю модули и коги (БД, все зависимости)...");
 const count = await loadCogs();
 const loaded = process.memoryUsage();
+let dbRef = null;
+try {
+  const dbMod = await import(pathToFileURL(path.join(ROOT, "src", "db.js")).href);
+  dbRef = dbMod.db || globalThis.__botDb || null;
+} catch {}
 
 const samples = [];
 const marker = { rss: 0, heap: 0, ext: 0 };
@@ -67,3 +75,11 @@ console.log(`Память сразу после импорта:  RSS=${fmt(loade
 console.log(`Финал:                        RSS=${fmt(last.rss).padStart(8)}  heap=${fmt(last.heapUsed).padStart(8)}`);
 console.log(`Пик RSS:                      ${fmt(peakRss)}  (средняя RSS=${fmt(avgRss)})`);
 console.log(`Пик heapUsed:                 ${fmt(peakHeap)}  (средняя heap=${fmt(avgHeap)})`);
+
+// Закрываем БД чтобы не было утечки дескриптора
+try {
+  if (dbRef && typeof dbRef.close === "function") dbRef.close();
+  else if (globalThis.__botDb && typeof globalThis.__botDb.close === "function") globalThis.__botDb.close();
+} catch {}
+if (global.gc) global.gc();
+process.exit(0);

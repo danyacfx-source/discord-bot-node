@@ -44,6 +44,7 @@ async function getHelixToken() {
       client_secret: CLIENT_SECRET,
       grant_type: "client_credentials",
     }),
+    signal: AbortSignal.timeout(12000),
   });
   if (!res.ok) throw new Error(`Twitch oauth ${res.status}`);
   const data = await res.json();
@@ -57,7 +58,7 @@ async function fetchHelixStream() {
   const token = await getHelixToken();
   const res = await fetch(
     `https://api.twitch.tv/helix/streams?user_login=${encodeURIComponent(CHANNEL)}`,
-    { headers: { "Client-ID": CLIENT_ID, Authorization: `Bearer ${token}` } }
+    { headers: { "Client-ID": CLIENT_ID, Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(12000) }
   );
   if (!res.ok) throw new Error(`Twitch Helix ${res.status}`);
   const data = await res.json();
@@ -85,6 +86,7 @@ async function fetchGqlStream() {
         variables: { login: CHANNEL },
       },
     ]),
+    signal: AbortSignal.timeout(12000),
   });
   if (!res.ok) throw new Error(`Twitch GQL ${res.status}`);
   const data = await res.json();
@@ -117,6 +119,7 @@ const cog = {
   _startedAt: null,
   _peak: 0,
   _last: null,
+  _isChecking: false,
 
   async setup(registry) {
     if (!cfg.enabled) {
@@ -165,13 +168,17 @@ const cog = {
 
   async _check(client) {
     if (!cfg.enabled) return;
+    if (cog._isChecking) return;
+    cog._isChecking = true;
     let status;
     try {
       status = await fetchStatus();
     } catch (e) {
       log.warn("Twitch", `Ошибка запроса статуса: ${e.message}`);
+      cog._isChecking = false;
       return;
     }
+    try {
 
     setStream("twitch", status);
     const nowLive = status.live;
@@ -210,6 +217,9 @@ const cog = {
     if (nowLive) cog._last = status;
     cog._wasLive = nowLive;
     updatePresence(client);
+    } finally {
+      cog._isChecking = false;
+    }
   },
 
   async _ensureSticky(client, status, withPing) {
@@ -248,12 +258,14 @@ const cog = {
 
   _buildEmbed(status) {
     const live = !!status.live;
+    const url = (typeof URL === "string" && URL) ? URL : `https://www.twitch.tv/${CHANNEL}`;
+    const color = Number.isFinite(COLOR) ? COLOR : 0x9146ff;
     if (live) {
       const embed = new EmbedBuilder()
         .setTitle("🔴 Мы в эфире на Twitch!")
-        .setDescription(`**${status.title || "Стрим начался"}**`)
-        .setURL(URL)
-        .setColor(COLOR)
+        .setDescription(`**${String(status.title || "Стрим начался").slice(0, 256)}**`)
+        .setURL(url)
+        .setColor(color)
         .addFields(
           { name: "Категория", value: status.category || "—", inline: true },
           { name: "Зрители", value: fmtNum(status.viewers || 0), inline: true },
@@ -270,8 +282,8 @@ const cog = {
       : "";
     const embed = new EmbedBuilder()
       .setTitle("⏹ Стрим завершён")
-      .setDescription(status.title ? `**${status.title}**` : "Стрим окончен.")
-      .setURL(URL)
+      .setDescription(status.title ? `**${String(status.title).slice(0, 256)}**` : "Стрим окончен.")
+      .setURL(url)
       .setColor(0x2c2f33)
       .addFields(
         { name: "Категория", value: status.category || "—", inline: true },

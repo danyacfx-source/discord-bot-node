@@ -10,18 +10,30 @@ function buildEmbed(member) {
   const voiceDescriptions = cfg.voice_descriptions || {};
   const hiddenVoice = new Set(cfg.hidden_voice || []);
 
+  // Pre-group channels by parent to avoid O(n²) filtering per category
+  const allChannels = [...guild.channels.cache.values()];
+  const byParent = new Map();
+  for (const c of allChannels) {
+    const pid = c.parentId || "__root__";
+    if (!byParent.has(pid)) byParent.set(pid, []);
+    byParent.get(pid).push(c);
+  }
+  const categories = allChannels.filter((c) => c.type === 4).sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+  const me = guild.members.me;
   const lines = [];
-  for (const cat of guild.channels.cache.filter((c) => c.type === 4).values()) {
-    const textChannels = guild.channels.cache
-      .filter(
-        (c) =>
-          c.type === 0 &&
-          c.parentId === cat.id &&
-          c.permissionsFor(guild.roles.everyone).has("ViewChannel")
-      )
+  for (const cat of categories) {
+    const children = byParent.get(cat.id) || [];
+    const textChannels = children
+      .filter((c) => {
+        if (c.type !== 0) return false;
+        try {
+          const perms = c.permissionsFor(guild.roles.everyone);
+          return perms && perms.has("ViewChannel");
+        } catch { return false; }
+      })
       .sort((a, b) => a.name.localeCompare(b.name));
 
-    if (textChannels.size > 0) {
+    if (textChannels.length > 0) {
       const catLines = textChannels.map((c) => {
         const desc = descriptions[c.name] || "Общение в канале";
         return `• **<#${c.id}>** — ${desc}`;
@@ -33,12 +45,13 @@ function buildEmbed(member) {
   }
 
   const voiceLines = [];
-  for (const vc of guild.channels.cache.filter((c) => c.type === 2).values()) {
+  for (const vc of allChannels.filter((c) => c.type === 2)) {
     if (hiddenVoice.has(vc.name)) continue;
-    if (vc.permissionsFor(guild.roles.everyone).has("Connect")) {
-      const desc = voiceDescriptions[vc.name] || "Голосовой канал";
-      voiceLines.push(`• **${vc.name}** — ${desc}`);
-    }
+    try {
+      if (!vc.permissionsFor(guild.roles.everyone).has("Connect")) continue;
+    } catch { continue; }
+    const desc = voiceDescriptions[vc.name] || "Голосовой канал";
+    voiceLines.push(`• **${vc.name}** — ${desc}`);
   }
   if (voiceLines.length > 0) {
     lines.push("**Голосовые каналы**");
@@ -80,11 +93,11 @@ const cog = {
       if (cfg.send_dm !== false) {
         try {
           let embed = buildEmbed(member);
-          if (embed.length && embed.length > 6000) {
+          if (embed.data.description && embed.data.description.length > 4096 || (embed.data.fields && JSON.stringify(embed.data).length > 6000)) {
             embed = new EmbedBuilder()
               .setTitle(cfg.title || "Добро пожаловать!")
               .setDescription(
-                cfg.intro || "Рады видеть тебя на сервере! Загляни в чаты и приходи на стримы."
+                (cfg.intro || "Рады видеть тебя на сервере! Загляни в чаты и приходи на стримы.").slice(0, 4096)
               )
               .setColor(0x9b59b6);
           }

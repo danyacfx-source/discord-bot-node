@@ -27,22 +27,30 @@ function loadState() {
 function saveState() {
   try {
     fs.mkdirSync(path.dirname(STATE_FILE), { recursive: true });
-    fs.writeFileSync(STATE_FILE, JSON.stringify(state), "utf-8");
+    const tmp = STATE_FILE + ".tmp";
+    fs.writeFileSync(tmp, JSON.stringify(state), "utf-8");
+    fs.renameSync(tmp, STATE_FILE);
   } catch {}
 }
 
 async function ytFetch(endpoint, params = {}) {
-  if (!API_KEY) throw new Error("YouTube API key не задан (YOUTUBE_API_KEY)");
-  const qs = new URLSearchParams({ ...params, key: API_KEY });
+  const key = API_KEY || process.env.YOUTUBE_API_KEY || "";
+  if (!key) throw new Error("YouTube API key не задан (YOUTUBE_API_KEY)");
+  const qs = new URLSearchParams({ ...params, key });
   const res = await fetch(`${API_BASE}${endpoint}?${qs}`, {
     headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(15000),
   });
   if (!res.ok) {
     let detail = "";
     try {
       const body = await res.json();
       detail = body?.error?.message || "";
-    } catch {}
+      if (res.status === 403 && String(detail).toLowerCase().includes("quota")) throw new Error(`YouTube quota exceeded (403): ${detail}`);
+      if (res.status === 429) throw new Error(`YouTube rate limited (429): ${detail}`);
+    } catch (e) {
+      if (e.message.includes("quota") || e.message.includes("429")) throw e;
+    }
     throw new Error(`YouTube API ${res.status}: ${detail}`);
   }
   return res.json();

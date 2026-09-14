@@ -1,6 +1,9 @@
-﻿import { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } from "discord.js";
+﻿import crypto from "node:crypto";
+import { EmbedBuilder, ButtonBuilder, ActionRowBuilder, ButtonStyle } from "discord.js";
 import * as db from "../db.js";
 import { log } from "../notify.js";
+
+const MAX_TIMEOUT_MS = 2147483647; // Node setTimeout limit (~24.8 days)
 
 const cog = {
   name: "Giveaways",
@@ -40,12 +43,18 @@ const cog = {
         { name: "min_days", description: "Мин. дней на сервере (по умолчанию 0)", type: 4, required: false },
       ],
       async run(interaction, _registry, client) {
-        const prize = interaction.options.getString("prize");
+        let prize = interaction.options.getString("prize");
         const duration = interaction.options.getInteger("duration");
-        const description = interaction.options.getString("description") || "";
+        let description = interaction.options.getString("description") || "";
         const winners = Math.max(1, Math.min(20, interaction.options.getInteger("winners") || 1));
         const minDays = Math.max(0, interaction.options.getInteger("min_days") || 0);
 
+        prize = String(prize).trim().slice(0, 200);
+        description = String(description).trim().slice(0, 1000);
+        if (!prize) {
+          await interaction.reply({ content: "Приз не может быть пустым.", ephemeral: true });
+          return;
+        }
         if (duration < 1 || duration > 10080) {
           await interaction.reply({ content: "Длительность: 1-10080 минут.", ephemeral: true });
           return;
@@ -125,8 +134,11 @@ const cog = {
     });
 
     registry.componentPrefix("gwa_", async (interaction, _registry, client) => {
-      const customId = interaction.customId;
-      if (!customId.startsWith("gwa_join:")) return;
+      const customId = String(interaction.customId || "");
+      if (!customId.startsWith("gwa_join:")) {
+        try { await interaction.reply({ content: "Неизвестная кнопка розыгрыша.", ephemeral: true }); } catch {}
+        return;
+      }
       const parts = customId.split(":");
       const gaId = Number(parts[1]);
       const ga = cog.active.get(gaId);
@@ -172,8 +184,26 @@ const cog = {
   _spawnFinish(gaId, client) {
     const ga = cog.active.get(gaId);
     if (!ga) return;
-    const delay = Math.max(1000, Math.round((ga.end_time - Date.now() / 1000) * 1000));
-    setTimeout(() => cog._finishGiveaway(gaId, client), delay);
+    // Clear any existing timer for this giveaway to avoid duplicates
+    if (ga._timer) clearTimeout(ga._timer);
+    const rawDelay = Math.max(1000, Math.round((ga.end_time - Date.now() / 1000) * 1000));
+    const schedule = (delay) => {
+      if (delay > MAX_TIMEOUT_MS) {
+        ga._timer = setTimeout(() => {
+          ga._timer = null;
+          // re-evaluate remaining time
+          cog._spawnFinish(gaId, client);
+        }, MAX_TIMEOUT_MS);
+        ga._timer.unref?.();
+      } else {
+        ga._timer = setTimeout(() => {
+          ga._timer = null;
+          cog._finishGiveaway(gaId, client);
+        }, delay);
+        ga._timer.unref?.();
+      }
+    };
+    schedule(rawDelay);
   },
 
   async _finishGiveaway(gaId, client) {
@@ -260,10 +290,15 @@ const cog = {
   _sample(arr, n) {
     const copy = [...arr];
     for (let i = copy.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      let j;
+      try {
+        j = crypto.randomInt(0, i + 1);
+      } catch {
+        j = Math.floor(Math.random() * (i + 1));
+      }
       [copy[i], copy[j]] = [copy[j], copy[i]];
     }
-    return copy.slice(0, n);
+    return copy.slice(0, Math.max(0, Math.min(n, copy.length)));
   },
 
   _extractMessageId(link) {

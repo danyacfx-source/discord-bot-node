@@ -6,7 +6,7 @@ import { CONFIG } from "../config.js";
 import { log } from "../notify.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const REPO_DIR = path.resolve(__dirname, "..");
+const REPO_DIR = path.resolve(__dirname, "../..");
 
 const cfg = CONFIG.guild_logs || {};
 let bot = null;
@@ -20,14 +20,18 @@ let sendChain = Promise.resolve();
 
 function trunc(text, limit) {
   let t = (text ?? "").trim() || "∅";
-  if (t.length > limit) t = t.slice(0, limit - 1) + "…";
+  const arr = [...t]; // spread handles surrogate pairs / emoji correctly
+  if (arr.length > limit) t = arr.slice(0, limit - 1).join("") + "…";
+  else t = arr.join("");
   return t;
 }
 
 function code(text, limit) {
   let t = (text ?? "").trim() || "∅";
   t = t.replace(/```/g, "‛‛‛");
-  if (t.length > limit) t = t.slice(0, limit - 1) + "…";
+  const arr = [...t];
+  if (arr.length > limit) t = arr.slice(0, limit - 1).join("") + "…";
+  else t = arr.join("");
   return t;
 }
 
@@ -71,7 +75,10 @@ function sendThrottled(channel, embed) {
     await channel.send({ embeds: [embed] });
     lastSend = Date.now();
   });
-  sendChain = task.catch(() => {});
+  // Chain errors but preserve task rejection for caller; keep global chain alive
+  sendChain = task.catch((e) => {
+    log.warn("GuildLogs", `sendThrottled error: ${e.message}`);
+  });
   return task;
 }
 

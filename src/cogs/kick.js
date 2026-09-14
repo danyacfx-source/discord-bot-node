@@ -30,6 +30,7 @@ function durationHMS(ms) {
 async function fetchStatus() {
   const res = await fetch(`https://kick.com/api/v2/channels/${encodeURIComponent(SLUG)}`, {
     headers: { Accept: "application/json", "User-Agent": "DiscordBot/1.0" },
+    signal: AbortSignal.timeout(12000),
   });
   if (!res.ok) throw new Error(`Kick API ${res.status}`);
   const data = await res.json();
@@ -52,6 +53,9 @@ const cog = {
   _startedAt: null,
   _peak: 0,
   _last: null,
+  _isChecking: false,
+  _color: Number.isFinite(Number(COLOR)) ? COLOR : 0x53fc18,
+  _url: URL,
 
   async setup(registry) {
     if (!cfg.enabled) {
@@ -103,13 +107,17 @@ const cog = {
 
   async _check(client) {
     if (!cfg.enabled || !liveCfg.enabled) return;
+    if (cog._isChecking) return;
+    cog._isChecking = true;
     let status;
     try {
       status = await fetchStatus();
     } catch (e) {
       log.warn("Kick", `Ошибка запроса статуса: ${e.message}`);
+      cog._isChecking = false;
       return;
     }
+    try {
     setStream("kick", status);
 
     const nowLive = status.isLive;
@@ -148,6 +156,9 @@ const cog = {
     if (nowLive) cog._last = status;
     cog._wasLive = nowLive;
     updatePresence(client);
+    } finally {
+      cog._isChecking = false;
+    }
   },
 
   async _ensureSticky(client, status, withPing) {
@@ -186,12 +197,14 @@ const cog = {
 
   _buildEmbed(status) {
     const live = !!(status.isLive ?? status.live);
+    const url = (typeof URL === "string" && URL) ? URL : cog._url;
+    const color = Number.isFinite(COLOR) ? COLOR : cog._color;
     if (live) {
       const embed = new EmbedBuilder()
         .setTitle("🔴 Мы в эфире!")
-        .setDescription(`**${status.title || "Стрим начался"}**`)
-        .setURL(URL)
-        .setColor(COLOR)
+        .setDescription(`**${String(status.title || "Стрим начался").slice(0, 256)}**`)
+        .setURL(url)
+        .setColor(color)
         .addFields(
           { name: "Категория", value: status.category || "—", inline: true },
           { name: "Зрители", value: fmtNum(status.viewers || 0), inline: true },
@@ -208,8 +221,8 @@ const cog = {
       : "";
     const embed = new EmbedBuilder()
       .setTitle("⏹ Стрим завершён")
-      .setDescription(status.title ? `**${status.title}**` : "Стрим окончен.")
-      .setURL(URL)
+      .setDescription(status.title ? `**${String(status.title).slice(0, 256)}**` : "Стрим окончен.")
+      .setURL(url)
       .setColor(0x2c2f33)
       .addFields(
         { name: "Категория", value: status.category || "—", inline: true },

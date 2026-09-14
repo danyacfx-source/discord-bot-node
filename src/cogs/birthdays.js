@@ -15,16 +15,25 @@ function daysInMonth(month, year = 2000) {
   return new Date(year, month, 0).getDate();
 }
 
-function nextOccurrence(month, day, now) {
-  const start = startOfDay(now);
-  const lastDayOf = (m, year) => Math.min(day, daysInMonth(m, year));
-  const thisYear = new Date(now.getFullYear(), month - 1, lastDayOf(month, now.getFullYear()));
-  if (thisYear >= start) return thisYear;
-  return new Date(now.getFullYear() + 1, month - 1, lastDayOf(month, now.getFullYear() + 1));
-}
-
 function startOfDay(now) {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function nextOccurrence(month, day, now) {
+  const start = startOfDay(now);
+  // Try this year and next year, clamping day to valid month length per year (handles Feb 29 -> Feb 28)
+  for (let y = now.getFullYear(); y <= now.getFullYear() + 1; y++) {
+    const dim = daysInMonth(month, y);
+    const d = Math.min(day, dim);
+    const cand = new Date(y, month - 1, d);
+    // cand is at 00:00 local; normalize to start of day comparison
+    const candStart = startOfDay(cand);
+    if (candStart >= start) return candStart;
+  }
+  // fallback next year
+  const y = now.getFullYear() + 1;
+  const d = Math.min(day, daysInMonth(month, y));
+  return new Date(y, month - 1, d);
 }
 
 function fmtNum(n) {
@@ -49,7 +58,7 @@ async function announce() {
       const member = guild.members.cache.get(String(row.user_id));
       if (member) display = member.displayName;
     }
-    const mention = `<@${row.user_id}>`;
+    const mention = `<@${String(row.user_id)}>`;
     const name = display || mention;
     lines.push(`🎂 **${name}** ${mention}`);
   }
@@ -78,9 +87,15 @@ function checkAnnounce() {
   const hour = Math.max(0, Math.min(23, cfg.announce_hour ?? 9));
   const now = new Date();
   const key = `${now.getFullYear()}-${fmtNum(now.getMonth() + 1)}-${fmtNum(now.getDate())}`;
+  // Persisted check to survive restarts and avoid duplicate announces
+  try {
+    const persisted = db.kvGet("birthday_last_announced_day");
+    if (persisted) lastAnnouncedDay = persisted;
+  } catch {}
   if (now.getHours() !== hour) return;
   if (lastAnnouncedDay === key) return;
   lastAnnouncedDay = key;
+  try { db.kvSet("birthday_last_announced_day", key); } catch {}
   announce().catch((e) => log.error("Birthday", `Ошибка анонса: ${e.message}`, e));
 }
 
@@ -100,7 +115,7 @@ async function cmdSet(interaction) {
     await interaction.reply({ content: "Такая дата не существует.", ephemeral: true });
     return;
   }
-  db.birthdaySet(Number(interaction.user.id), month, day);
+  db.birthdaySet(String(interaction.user.id), month, day);
   await interaction.reply({
     content: `Дата сохранена: **${fmtNum(day)}.${fmtNum(month)}**\nВ этот день бот поздравит тебя на сервере! 🎉`,
     ephemeral: true,
@@ -108,12 +123,12 @@ async function cmdSet(interaction) {
 }
 
 async function cmdRemove(interaction) {
-  const current = db.birthdayGet(Number(interaction.user.id));
+  const current = db.birthdayGet(String(interaction.user.id));
   if (!current) {
     await interaction.reply({ content: "Дата не установлена.", ephemeral: true });
     return;
   }
-  db.birthdayRemove(Number(interaction.user.id));
+  db.birthdayRemove(String(interaction.user.id));
   await interaction.reply({ content: "Дата удалена.", ephemeral: true });
 }
 
@@ -128,7 +143,7 @@ async function cmdList(interaction) {
     .map((row) => {
       const next = nextOccurrence(row.month, row.day, now);
       const delta = Math.max(0, Math.round((next - startOfDay(now)) / 86400000));
-      return { delta, uid: row.user_id, month: row.month, day: row.day };
+      return { delta, uid: String(row.user_id), month: row.month, day: row.day };
     })
     .sort((a, b) => a.delta - b.delta);
 
@@ -137,7 +152,7 @@ async function cmdList(interaction) {
   for (const item of upcoming) {
     if (item.delta >= 365) continue;
     const member = guild?.members?.cache?.get(String(item.uid));
-    const name = member ? member.displayName : `Пользователь ${item.uid}`;
+    const name = member ? member.displayName : `Пользователь ${String(item.uid)}`;
     const when =
       item.delta === 0 ? "Сегодня! 🎉" : item.delta === 1 ? "Завтра" : `через ${item.delta} дн.`;
     lines.push(`**${name}** — ${fmtNum(item.day)}.${fmtNum(item.month)} (${when})`);
@@ -158,7 +173,22 @@ async function cmdList(interaction) {
 const cog = {
   name: "Birthdays",
   async setup(registry) {
+    // защита от hot-reload: сбрасываем предыдущий интервал
+    if (intervalId) {
+      clearInterval(intervalId);
+      intervalId = null;
+    }
+    if (started) {
+      // сброс состояния чтобы повторный setup не оставил stale bot
+      started = false;
+    }
     bot = registry.client;
+
+    // Restore persisted lastAnnouncedDay on startup
+    try {
+      const persisted = db.kvGet("birthday_last_announced_day");
+      if (persisted) lastAnnouncedDay = persisted;
+    } catch {}
 
     registry.slash({
       name: "birthday",
@@ -188,9 +218,16 @@ const cog = {
       if (started) return;
       started = true;
       if (cfg.enabled === false) return;
+      // restore again after ready (in case DB was not ready earlier)
+      try {
+        const persisted = db.kvGet("birthday_last_announced_day");
+        if (persisted) lastAnnouncedDay = persisted;
+      } catch {}
       checkAnnounce();
-      intervalId = setInterval(checkAnnounce, 3600000);
-      log.info("Birthday", "Ежедневный анонс запущен");
+      // Check every minute instead of hourly to avoid drift/missed hour and duplication
+      if (intervalId) clearInterval(intervalId);
+      intervalId = setInterval(checkAnnounce, 60 * 1000);
+      log.info("Birthday", "Ежедневный анонс запущен (проверка каждую минуту)");
     });
   },
 };

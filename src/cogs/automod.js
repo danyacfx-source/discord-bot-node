@@ -12,7 +12,7 @@ function matchBannedWord(content, bannedWords) {
 }
 
 function normalizedAllowedLinks(config) {
-  return (config.allowed_links || []).map((l) => l.toLowerCase().replace(/^https?:\/\//, "").replace(/\/+$/, ""));
+  return (config.allowed_links || []).map((l) => l.toLowerCase().replace(/^https?:\/\//, "").replace(/\/+$/, "").split(":")[0]);
 }
 
 function checkLinks(content, allowedHosts, blockLinks) {
@@ -23,7 +23,10 @@ function checkLinks(content, allowedHosts, blockLinks) {
     const url = match[0].toLowerCase();
     const hostMatch = url.match(/\/\/(?:www\.)?([^/]+)/);
     if (!hostMatch) continue;
-    const host = hostMatch[1];
+    // Strip port (:8080), query, and trailing dot
+    let host = hostMatch[1].split(":")[0].split("?")[0].split("#")[0];
+    host = host.replace(/\.$/, "");
+    if (!host) continue;
     if (!allowedHosts.some((a) => host === a || host.endsWith("." + a))) {
       return host;
     }
@@ -33,14 +36,17 @@ function checkLinks(content, allowedHosts, blockLinks) {
 
 function checkCaps(content, threshold, minLen) {
   if (content.length < minLen) return false;
-  const alpha = content.replace(/[^a-zA-Zа-яА-ЯёЁ]/g, "");
+  // игнорируем ссылки при подсчёте капса чтобы не триггерить на URL
+  const stripped = content.replace(/https?:\/\/\S+/gi, "");
+  const alpha = stripped.replace(/[^a-zA-Zа-яА-ЯёЁ]/g, "");
   if (alpha.length < minLen) return false;
   const upper = alpha.replace(/[^A-ZА-ЯЁ]/g, "").length;
   return upper / alpha.length >= threshold;
 }
 
 function checkStretch(content) {
-  return /(.)\1{4,}/i.test(content);
+  // Require 6+ identical consecutive chars to reduce false positives (was 5)
+  return /(.)\1{5,}/.test(content);
 }
 
 const cog = {
@@ -50,18 +56,30 @@ const cog = {
   _banWindow: 300,
 
   async setup(registry) {
-    cog._banWindow = cfg.ban_window_seconds || 300;
+    // Align config key mismatch: support ban_window_seconds, ban_window, fallback to 300
+    // Config historically uses ban_after_timeouts for count, but window was missing -> unify
+    const rawWindow = cfg.ban_window_seconds ?? cfg.ban_window ?? cfg.banWindow ?? 300;
+    cog._banWindow = Number(rawWindow) || 300;
 
     registry.event("messageCreate", async (message) => {
       if (!cfg.enabled) return;
       if (message.author.bot) return;
       if (!message.guild) return;
-      const member = await message.guild.members.fetch(message.author.id).catch(() => null);
+      // Fix per-message members.fetch rate limit spam: prefer cache / message.member
+      let member = message.member;
+      if (!member) member = message.guild.members.cache.get(String(message.author.id));
+      if (!member) {
+        try {
+          member = await message.guild.members.fetch(message.author.id);
+        } catch {
+          return;
+        }
+      }
       if (!member) return;
       if (cog._hasIgnoredRole(member)) return;
       if (member.permissions.has("ManageMessages")) return;
-      const ignoredChannels = new Set(cfg.ignored_channels || []);
-      if (ignoredChannels.has(message.channel.id)) return;
+      const ignoredChannels = new Set((cfg.ignored_channels || []).map(String));
+      if (ignoredChannels.has(String(message.channel.id))) return;
 
       const content = message.content || "";
       const reason = cog._analyze(member, content);
@@ -104,10 +122,10 @@ const cog = {
   _trackSpam(member) {
     const now = Date.now() / 1000;
     const window = 5.0;
-    let q = cog._messages.get(member.id);
+    let q = cog._messages.get(String(member.id));
     if (!q) {
       q = [];
-      cog._messages.set(member.id, q);
+      cog._messages.set(String(member.id), q);
     }
     while (q.length && now - q[0] > window) q.shift();
     q.push(now);
@@ -117,7 +135,7 @@ const cog = {
   _isSpam(member) {
     const maxInWindow = cfg.max_messages_in_window || 5;
     if (maxInWindow <= 0) return false;
-    const q = cog._messages.get(member.id) || [];
+    const q = cog._messages.get(String(member.id)) || [];
     const now = Date.now() / 1000;
     const recent = q.filter((ts) => now - ts <= 5.0).length;
     return q.length > maxInWindow || recent > maxInWindow;
@@ -135,10 +153,10 @@ const cog = {
     if (banAfter > 0) {
       const now = Date.now() / 1000;
       const window = cog._banWindow;
-      let stamps = cog._timeoutCounts.get(member.id);
+      let stamps = cog._timeoutCounts.get(String(member.id));
       if (!stamps) {
         stamps = [];
-        cog._timeoutCounts.set(member.id, stamps);
+        cog._timeoutCounts.set(String(member.id), stamps);
       }
       while (stamps.length && now - stamps[0] > window) stamps.shift();
       stamps.push(now);

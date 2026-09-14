@@ -141,7 +141,7 @@
     "enabled": true,
     "host": "127.0.0.1",
     "port": 8765,
-    "token": "qwEr7TyUi2OpAsDfGhJkLzXcVbNm9QwEr",
+    "token": "",
     "donation_goal": {
       "enabled": false,
       "target": 10000,
@@ -742,10 +742,11 @@
   },
   "ai": {
     "enabled": true,
-    "api_key": "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",
+    "api_key": "",
+    "provider": "gemini",
     "channels": ["1534711421026304132"],
     "cooldown_seconds": 45,
-    "model": "meta-llama/llama-3.3-70b-instruct:free",
+    "model": "gemini-3.6-flash",
     "temperature": 0.9,
     "max_tokens": 220,
     "history_size": 12,

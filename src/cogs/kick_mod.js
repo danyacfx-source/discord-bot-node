@@ -101,16 +101,26 @@ const done = (interaction, title, desc, extra = []) =>
 
 // ---------- Pusher WS: чтение чата + автоделит запретных слов ----------
 
-async function ensureChatroomId() {
+async function ensureChatroomId(retries = 3) {
   if (chatroomId) return chatroomId;
-  const res = await fetch(`https://kick.com/api/v2/channels/${encodeURIComponent(CHANNEL)}/chatroom`, {
-    headers: { Accept: "application/json", "User-Agent": "DiscordBot/1.0" },
-    signal: AbortSignal.timeout(15000),
-  });
-  if (!res.ok) throw new Error(`Не удалось получить chatroom (HTTP ${res.status})`);
-  const data = await res.json();
-  chatroomId = data.id;
-  return chatroomId;
+  let lastErr;
+  for (let i = 0; i < retries; i++) {
+    try {
+      const res = await fetch(`https://kick.com/api/v2/channels/${encodeURIComponent(CHANNEL)}/chatroom`, {
+        headers: { Accept: "application/json", "User-Agent": "DiscordBot/1.0" },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!res.ok) throw new Error(`Не удалось получить chatroom (HTTP ${res.status})`);
+      const data = await res.json();
+      if (!data?.id) throw new Error("chatroom id missing");
+      chatroomId = data.id;
+      return chatroomId;
+    } catch (e) {
+      lastErr = e;
+      if (i < retries - 1) await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, i)));
+    }
+  }
+  throw lastErr;
 }
 
 async function deleteMessage(messageId) {
@@ -129,7 +139,12 @@ async function handleChatEvent(payload) {
   if (!TOKEN || !DELETE_MESSAGES) return;
   const data = payload?.data;
   if (!data) return;
-  const msg = typeof data === "string" ? JSON.parse(data) : data;
+  let msg;
+  try {
+    msg = typeof data === "string" ? JSON.parse(data) : data;
+  } catch {
+    return;
+  }
   const content = msg?.content || "";
   const banned = matchBannedWord(content);
   if (!banned) return;
@@ -150,23 +165,38 @@ function connectPusher() {
     ws = new WebSocket(PUSHER_URL);
     const channel = `chatrooms.${chatroomId}.v2`;
     let established = false;
+    let pingTimer = null;
 
     ws.on("open", () => {
       ws.send(JSON.stringify({ event: "pusher:subscribe", data: { auth: "", channel } }));
     });
 
+    function schedulePing() {
+      if (pingTimer) clearInterval(pingTimer);
+      pingTimer = setInterval(() => {
+        try { ws?.send(JSON.stringify({ event: "pusher:ping", data: {} })); } catch {}
+      }, 120000);
+      pingTimer.unref?.();
+    }
+
     ws.on("message", (raw) => {
       const text = raw.toString();
       if (text.includes("pusher:connection_established")) {
         established = true;
+        schedulePing();
         return;
       }
+      if (text.includes("pusher:pong")) return;
       if (text.includes("pusher_internal:subscription_succeeded")) {
         log.info("KickMod", `Подключено к чату kick.com/${CHANNEL} (${channel})${TOKEN && DELETE_MESSAGES ? " · автоделит вкл" : " · только чтение"}`);
         return;
       }
       try {
         const j = JSON.parse(text);
+        if (j.event === "pusher:ping") {
+          try { ws.send(JSON.stringify({ event: "pusher:pong", data: {} })); } catch {}
+          return;
+        }
         if (j.event === "App\\Events\\ChatMessageEvent") handleChatEvent(j).catch(() => {});
       } catch {}
     });
@@ -176,6 +206,7 @@ function connectPusher() {
     });
 
     ws.on("close", () => {
+      if (pingTimer) clearInterval(pingTimer);
       if (shuttingDown) return;
       if (!reconnectTimer) reconnectTimer = setTimeout(() => {
         reconnectTimer = null;
@@ -216,9 +247,15 @@ const cog = {
       }
     });
 
+    // avoid listener leak on hot-reload
+    process.removeListener("exit", stopPusher);
+    const sigintHandler = () => { stopPusher(); process.exit(0); };
+    const sigtermHandler = () => { stopPusher(); process.exit(0); };
+    process.removeListener("SIGINT", sigintHandler);
+    process.removeListener("SIGTERM", sigtermHandler);
     process.on("exit", stopPusher);
-    process.on("SIGINT", () => { stopPusher(); process.exit(0); });
-    process.on("SIGTERM", () => { stopPusher(); process.exit(0); });
+    process.on("SIGINT", sigintHandler);
+    process.on("SIGTERM", sigtermHandler);
 
     // ---- Бан (навсегда) ----
     registry.slash({

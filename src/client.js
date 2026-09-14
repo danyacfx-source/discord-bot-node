@@ -14,10 +14,8 @@ export function createClient() {
       GatewayIntentBits.GuildMessageReactions,
       GatewayIntentBits.DirectMessages,
       GatewayIntentBits.GuildPresences,
-      GatewayIntentBits.GuildIntegrations,
-      GatewayIntentBits.GuildMessageTyping,
     ],
-    partials: [Partials.Channel, Partials.Message],
+    partials: [Partials.Channel, Partials.Message, Partials.GuildMember, Partials.Reaction, Partials.User],
   });
   return client;
 }

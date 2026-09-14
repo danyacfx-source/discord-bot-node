@@ -3,5 +3,10 @@ data/
 *.log
 .bot.lock
 .env
-data.dbdata.db-wal
+data.db
+data.db-wal
 data.db-shm
+data.db-journal
+state/
+.env.local
+config.local.json

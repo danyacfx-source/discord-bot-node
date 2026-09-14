@@ -1,24 +1,54 @@
 import http from "node:http";
 import crypto from "node:crypto";
-import { OVERLAY, CONFIG } from "../config.js";
+import fs from "node:fs";
+import path from "node:path";
+import { OVERLAY, CONFIG, DATA_DIR } from "../config.js";
 import * as db from "../db.js";
 import { activeStream, fmtNum, CHANNELS } from "../stream_state.js";
 import { log } from "../notify.js";
 
 function timingSafeEqual(a, b) {
   if (typeof a !== "string" || typeof b !== "string") return false;
-  const bufA = Buffer.from(a);
-  const bufB = Buffer.from(b);
-  if (bufA.length !== bufB.length) return false;
-  return crypto.timingSafeEqual(bufA, bufB);
+  try {
+    const ha = crypto.createHash("sha256").update(String(a)).digest();
+    const hb = crypto.createHash("sha256").update(String(b)).digest();
+    const eq = crypto.timingSafeEqual(ha, hb);
+    return eq && String(a).length === String(b).length;
+  } catch {
+    return false;
+  }
 }
 
 function parseBody(req) {
   return new Promise((resolve, reject) => {
     const chunks = [];
-    req.on("data", (c) => chunks.push(c));
-    req.on("end", () => resolve(Buffer.concat(chunks).toString()));
-    req.on("error", reject);
+    let total = 0;
+    const limit = 1 * 1024 * 1024; // 1MB
+    let rejected = false;
+    function fail(err) {
+      if (rejected) return;
+      rejected = true;
+      try { req.removeAllListeners("data"); req.removeAllListeners("end"); req.removeAllListeners("error"); } catch {}
+      try { req.pause(); } catch {}
+      try { if (!req.destroyed) req.destroy(); } catch {}
+      reject(err);
+    }
+    req.on("data", (c) => {
+      if (rejected) return;
+      total += c.length;
+      if (total > limit) {
+        const e = new Error("payload too large");
+        e.status = 413;
+        fail(e);
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on("end", () => {
+      if (rejected) return;
+      resolve(Buffer.concat(chunks).toString());
+    });
+    req.on("error", (e) => fail(e));
   });
 }
 
@@ -68,10 +98,40 @@ const cog = {
     if (cog._server) return;
 
     const host = process.env.OVERLAY_HOST || OVERLAY.host || "127.0.0.1";
-    const port = Number(process.env.OVERLAY_PORT) || OVERLAY.port || 8765;
-    cog._token = process.env.OVERLAY_TOKEN || OVERLAY.token || crypto.randomBytes(24).toString("base64url");
-
-    const isLoopback = ["127.0.0.1", "localhost", "::1"].includes(host);
+    const portRaw = process.env.OVERLAY_PORT || OVERLAY.port;
+    const port = portRaw !== undefined && String(portRaw).trim() !== "" ? Number.parseInt(String(portRaw), 10) : 8765;
+    if (!Number.isFinite(port) || port <= 0 || port > 65535) {
+      log.error("Overlay", `Invalid port ${portRaw}, fallback to 8765`);
+    }
+    const effectivePort = Number.isFinite(port) && port > 0 && port <= 65535 ? port : 8765;
+    const overlayTokenFile = path.join(DATA_DIR || path.resolve("data"), ".overlay-token");
+    let resolvedToken = (process.env.OVERLAY_TOKEN || "").trim() || (OVERLAY.token || "").trim();
+    if (resolvedToken && resolvedToken.length < 16) {
+      log.warn("Overlay", "OVERLAY_TOKEN too short (<16) — ignoring insecure token");
+      resolvedToken = "";
+    }
+    if (resolvedToken && resolvedToken.length >= 16) {
+      cog._token = resolvedToken;
+    } else {
+      let fileToken = "";
+      try {
+        if (fs.existsSync(overlayTokenFile)) fileToken = fs.readFileSync(overlayTokenFile, "utf-8").trim();
+      } catch {}
+      if (fileToken && fileToken.length >= 16) {
+        cog._token = fileToken;
+        log.warn("Overlay", "Используется сохранённый токен из файла (OVERLAY_TOKEN не задан)");
+      } else {
+        const generated = crypto.randomBytes(24).toString("base64url");
+        try {
+          fs.mkdirSync(path.dirname(overlayTokenFile), { recursive: true });
+          fs.writeFileSync(overlayTokenFile, generated + "\n", { mode: 0o600 });
+          log.warn("Overlay", `Сгенерирован и сохранён OVERLAY_TOKEN в ${overlayTokenFile} — установите OVERLAY_TOKEN в .env для постоянства`);
+        } catch (e) {
+          log.warn("Overlay", "OVERLAY_TOKEN не задан — сгенерирован временный токен (перезапуск сменит токен, установите OVERLAY_TOKEN в .env)");
+        }
+        cog._token = generated;
+      }
+    }
 
     const server = http.createServer(async (req, res) => {
       try {
@@ -79,10 +139,17 @@ const cog = {
         const path = url.pathname;
         const queryToken = url.searchParams.get("token") || "";
         const headerToken = req.headers["x-overlay-token"] || "";
-        const valid = timingSafeEqual(queryToken || headerToken, cog._token);
+        // Fix timingSafeEqual logic bug: check both tokens independently, don't fallback via ||
+        const valid = timingSafeEqual(queryToken, cog._token) || timingSafeEqual(String(headerToken), cog._token);
+
+        // Health check without auth (optional)
+        if (path === "/overlay/health") {
+          sendJson(res, { ok: true });
+          return;
+        }
 
         if (path === "/overlay" || path === "/overlay/") {
-          if (!isLoopback && !valid) {
+          if (!valid) {
             res.writeHead(401);
             res.end("Unauthorized");
             return;
@@ -97,32 +164,46 @@ const cog = {
             sendJson(res, { error: "unauthorized" }, 401);
             return;
           }
-          const kickChannel = (CONFIG.kick || {}).channel || "";
-          const counters = db.counterList(kickChannel).filter((c) => c.name !== "tod");
+          const kickChannel = String((CONFIG.kick || {}).channel || "").trim();
+          const rawCounters = kickChannel ? db.counterList(kickChannel).filter((c) => c.name !== "tod") : [];
+          // sanitize counters — limit fields, no internal leaks
+          const counters = rawCounters.slice(0, 50).map(c => ({
+            name: String(c.name).slice(0, 64),
+            value: typeof c.value === "number" ? c.value : String(c.value).slice(0, 64),
+          }));
           const dg = OVERLAY.donation_goal || {};
           const stream = activeStream();
+          // Fix PAYLOAD leaks and hardcoded donation_goal: don't expose full CHANNELS, sanitize donation_goal
+          const donationGoalEnabled = !!dg.enabled;
+          const safeDonationGoal = donationGoalEnabled ? {
+            enabled: true,
+            target: Number.isFinite(Number(dg.target)) ? Number(dg.target) : 0,
+            currency: String(dg.currency || "₽").slice(0, 8),
+            label: String(dg.label || "Донат-цель").slice(0, 64),
+            current: Number.isFinite(Number(dg.current)) ? Number(dg.current) : 0,
+          } : { enabled: false };
+          // Only expose safe subset of CHANNELS, not full config
+          const safeChannels = {};
+          if (CHANNELS.twitch) safeChannels.twitch = String(CHANNELS.twitch).slice(0, 64);
+          if (CHANNELS.kick) safeChannels.kick = String(CHANNELS.kick).slice(0, 64);
+          if (CHANNELS.youtube) safeChannels.youtube = String(CHANNELS.youtube).slice(0, 64);
+
           const payload = {
             stream: stream
               ? {
-                  platform: stream.platform,
-                  live: stream.live,
-                  viewers: stream.viewers,
-                  peak: stream.peak,
-                  title: stream.title,
-                  category: stream.category,
-                  startedAt: stream.startedAt,
-                  url: stream.url,
+                  platform: String(stream.platform).slice(0, 32),
+                  live: !!stream.live,
+                  viewers: Number.isFinite(stream.viewers) ? stream.viewers : 0,
+                  peak: Number.isFinite(stream.peak) ? stream.peak : 0,
+                  title: String(stream.title || "").slice(0, 200),
+                  category: String(stream.category || "").slice(0, 100),
+                  startedAt: stream.startedAt || null,
+                  url: String(stream.url || "").slice(0, 300),
                 }
               : null,
-            channels: CHANNELS,
+            channels: safeChannels,
             counters,
-            donation_goal: {
-              enabled: !!dg.enabled,
-              target: dg.target || 0,
-              currency: dg.currency || "₽",
-              label: dg.label || "Донат-цель",
-              current: 0,
-            },
+            donation_goal: safeDonationGoal,
           };
           sendJson(res, payload);
           return;
@@ -137,12 +218,21 @@ const cog = {
       }
     });
 
-    server.listen(port, host, () => {
-      log.info("Overlay", `Сервер запущен на http://${host}:${port}/overlay`);
+    server.on("error", (e) => {
+      if (e && e.code === "EADDRINUSE") {
+        log.error("Overlay", `Порт ${effectivePort} уже занят — оверлей не запущен`);
+      } else {
+        log.error("Overlay", `Ошибка сервера оверлея`, e);
+      }
+      try { server.close(); } catch {}
+      cog._server = null;
+    });
+    server.on("clientError", (err, socket) => {
+      try { socket.end("HTTP/1.1 400 Bad Request\r\n\r\n"); } catch {}
     });
 
-    server.on("error", (e) => {
-      log.error("Overlay", `Не удалось занять порт ${port}`, e);
+    server.listen(effectivePort, host, () => {
+      log.info("Overlay", `Сервер запущен на http://${host}:${effectivePort}/overlay`);
     });
 
     cog._server = server;

@@ -27,10 +27,14 @@ let bot = null;
 let cleanupTimer = null;
 
 function slug(name) {
+  // Unicode-aware slug: keep Cyrillic and any letters/numbers, strip emoji/symbols
   return String(name || "")
     .toLowerCase()
-    .replace(/ /g, "-")
-    .replace(/[^\w\-]/g, "");
+    .normalize("NFKC")
+    .replace(/\s+/g, "-")
+    .replace(/[^\p{L}\p{N}\-]/gu, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
 }
 
 function loadOwners() {
@@ -58,23 +62,47 @@ function saveOwners() {
   }
 }
 
+const MAX_LOCKS = 256;
 function channelLock(id) {
-  let lock = channelLocks.get(id);
+  const key = String(id);
+  let lock = channelLocks.get(key);
   if (!lock) {
-    lock = { p: Promise.resolve() };
-    channelLocks.set(id, lock);
-    if (channelLocks.size > 512) {
-      const overflow = [...channelLocks.keys()].slice(0, Math.floor(channelLocks.size / 2));
-      for (const cid of overflow) channelLocks.delete(cid);
+    lock = { p: Promise.resolve(), lastUsed: Date.now() };
+    channelLocks.set(key, lock);
+    // LRU eviction: remove oldest when exceeding limit
+    if (channelLocks.size > MAX_LOCKS) {
+      // sort by lastUsed
+      const entries = [...channelLocks.entries()].sort((a, b) => a[1].lastUsed - b[1].lastUsed);
+      const toDelete = entries.slice(0, Math.ceil(channelLocks.size / 2));
+      for (const [cid] of toDelete) {
+        const l = channelLocks.get(cid);
+        // don't delete if still pending
+        if (l && l.p) {
+          // check if lock is idle (resolved)
+          // we still delete oldest; withLock will recreate
+        }
+        channelLocks.delete(cid);
+      }
     }
   }
+  lock.lastUsed = Date.now();
   return lock;
 }
 
 function withLock(id, fn) {
   const lock = channelLock(id);
-  const run = lock.p.then(fn);
+  const run = lock.p.then(() => fn()).catch((e) => { throw e; });
+  // chain next
   lock.p = run.catch(() => {});
+  // schedule cleanup after idle 5 minutes
+  setTimeout(() => {
+    const current = channelLocks.get(String(id));
+    if (current === lock) {
+      // if no pending chain beyond resolved, allow eviction on next overflow; keep for now
+      // optional auto-delete if idle and promise settled
+      // we keep to avoid churn; LRU will evict
+    }
+  }, 5 * 60 * 1000).unref?.();
   return run;
 }
 
@@ -85,7 +113,7 @@ function specFor(channel) {
 
 function isCreate(channel) {
   if (!channel) return false;
-  if (triggerChannelIds.has(channel.id)) return true;
+  if (triggerChannelIds.has(String(channel.id))) return true;
   const spec = specFor(channel);
   if (!spec) return false;
   return slug(channel.name) === slug(spec.create || "➕ Создать канал");
@@ -93,15 +121,15 @@ function isCreate(channel) {
 
 function isManaged(channel) {
   if (!channel) return false;
-  if (triggerChannelIds.has(channel.id)) return false;
+  if (triggerChannelIds.has(String(channel.id))) return false;
   const spec = specFor(channel);
   if (spec) return slug(channel.name) !== slug(spec.create || "➕ Создать канал");
-  if (channel.parent && tempCategoryIds.has(channel.parent.id)) return true;
+  if (channel.parent && tempCategoryIds.has(String(channel.parent.id))) return true;
   return false;
 }
 
 function isOwner(interaction, vc) {
-  return tempChannelOwners.get(vc.id) === interaction.user.id;
+  return tempChannelOwners.get(String(vc.id)) === String(interaction.user.id);
 }
 
 function newChannelName(trigger, category, spec) {
@@ -116,12 +144,12 @@ function tempChannels(guild) {
   const seen = new Set();
   for (const category of guild.channels.cache.values()) {
     if (category.type !== ChannelType.GuildCategory) continue;
-    if (!TEMP_CATS[category.name] && !tempCategoryIds.has(category.id)) continue;
+    if (!TEMP_CATS[category.name] && !tempCategoryIds.has(String(category.id))) continue;
     for (const ch of category.children.cache.values()) {
       if (ch.type !== ChannelType.GuildVoice) continue;
-      if (seen.has(ch.id)) continue;
+      if (seen.has(String(ch.id))) continue;
       if (isManaged(ch)) {
-        seen.add(ch.id);
+        seen.add(String(ch.id));
         out.push(ch);
       }
     }
@@ -134,13 +162,17 @@ function humansOf(vc) {
 }
 
 async function deleteIfEmpty(vc) {
-  tempChannelOwners.delete(vc.id);
+  tempChannelOwners.delete(String(vc.id));
+  saveOwners();
   try {
     await vc.delete("Временный канал: пустой");
   } catch (e) {
     if (e.code !== 10003) {
       log.warn("TempVoice", `Ошибка удаления канала ${vc.name}: ${e.message}`);
     }
+  } finally {
+    // cleanup lock after deletion to prevent unbounded growth
+    channelLocks.delete(String(vc.id));
   }
 }
 
@@ -148,7 +180,7 @@ async function cleanupEmpty() {
   for (const guild of bot.guilds.cache.values()) {
     for (const vc of tempChannels(guild)) {
       if (humansOf(vc).length) continue;
-      await withLock(vc.id, () => deleteIfEmpty(vc));
+      await withLock(String(vc.id), () => deleteIfEmpty(vc));
     }
   }
 }
@@ -164,23 +196,23 @@ async function onReady() {
       const spec = TEMP_CATS[catName];
       for (const ch of category.children.cache.values()) {
         if (ch.type === ChannelType.GuildVoice && slug(ch.name) === slug(spec.create || "➕ Создать канал")) {
-          triggerChannelIds.add(ch.id);
+          triggerChannelIds.add(String(ch.id));
         }
       }
     }
     for (const vid of Object.keys(TEMP_TRIGGERS)) {
-      if (guild.channels.cache.get(vid)) triggerChannelIds.add(vid);
+      if (guild.channels.cache.get(String(vid))) triggerChannelIds.add(String(vid));
     }
     for (const tid of triggerChannelIds) {
-      const ch = guild.channels.cache.get(tid);
-      if (ch && ch.parent) tempCategoryIds.add(ch.parent.id);
+      const ch = guild.channels.cache.get(String(tid));
+      if (ch && ch.parent) tempCategoryIds.add(String(ch.parent.id));
     }
     for (const vc of tempChannels(guild)) {
       const humans = humansOf(vc);
       if (!humans.length) {
-        await withLock(vc.id, () => deleteIfEmpty(vc));
-      } else if (!tempChannelOwners.has(vc.id)) {
-        tempChannelOwners.set(vc.id, humans[0].id);
+        await withLock(String(vc.id), () => deleteIfEmpty(vc));
+      } else if (!tempChannelOwners.has(String(vc.id))) {
+        tempChannelOwners.set(String(vc.id), String(humans[0].id));
         saveOwners();
       }
     }
@@ -205,18 +237,40 @@ async function onVoiceStateUpdate(oldState, newState) {
     const guild = afterCh.guild;
     const spec = TEMP_CATS[category.name] || null;
     const member = newState.member;
-    try {
-      const vc = await guild.channels.create({
-        name: newChannelName(afterCh, category, spec),
-        type: ChannelType.GuildVoice,
-        parent: category.id,
-        reason: "Временный канал",
-      });
-      tempChannelOwners.set(vc.id, member.id);
+    if (!member) return;
+    const triggerId = String(afterCh.id);
+    // Use lock per trigger to prevent duplicate creation when two users join simultaneously
+    await withLock(`create:${triggerId}`, async () => {
+      // Atomic re-check: member may have already left trigger or been moved by parallel handler
+      const freshMember = guild.members.cache.get(String(member.id));
+      const currentChannel = freshMember?.voice?.channel;
+      if (!currentChannel || String(currentChannel.id) !== triggerId) return;
+      // Also ensure trigger still exists and is still a create channel
+      const triggerChannel = guild.channels.cache.get(triggerId);
+      if (!triggerChannel || !isCreate(triggerChannel)) return;
+
+      let vc;
+      try {
+        vc = await guild.channels.create({
+          name: newChannelName(afterCh, category, spec),
+          type: ChannelType.GuildVoice,
+          parent: category.id,
+          reason: "Временный канал",
+        });
+      } catch (e) {
+        log.warn("TempVoice", `Ошибка создания временного канала: ${e.message}`);
+        return;
+      }
+      tempChannelOwners.set(String(vc.id), String(member.id));
       saveOwners();
       let moved = false;
-      for (const m of afterCh.members.values()) {
-        if (m.user.bot) continue;
+      // Collect members currently in trigger at creation time (atomic snapshot)
+      const toMove = [...triggerChannel.members.values()].filter((m) => !m.user.bot);
+      // Prefer moving the triggering member first
+      toMove.sort((a, b) => (String(a.id) === String(member.id) ? -1 : String(b.id) === String(member.id) ? 1 : 0));
+      for (const m of toMove) {
+        // Skip if already moved or not in trigger anymore
+        if (String(m.voice?.channel?.id) !== triggerId) continue;
         try {
           await m.voice.setChannel(vc.id);
           moved = true;
@@ -225,25 +279,26 @@ async function onVoiceStateUpdate(oldState, newState) {
         }
       }
       if (!moved) {
-        tempChannelOwners.delete(vc.id);
+        // Handle move failures: no one could be moved -> cleanup to avoid orphan
+        tempChannelOwners.delete(String(vc.id));
+        saveOwners();
         await vc.delete("Временный канал: никто не перемещён").catch(() => {});
+        channelLocks.delete(String(vc.id));
       }
-    } catch (e) {
-      log.warn("TempVoice", `Ошибка создания временного канала: ${e.message}`);
-    }
+    }).catch((e) => log.warn("TempVoice", `Ошибка withLock create: ${e.message}`));
   }
 
-  if (beforeCh && isManaged(beforeCh) && beforeCh !== afterCh) {
+  if (beforeCh && isManaged(beforeCh) && String(beforeCh.id) !== String(afterCh?.id)) {
     const vc = beforeCh;
     const member = newState.member || oldState.member;
     if (!member) return;
-    await withLock(vc.id, async () => {
+    await withLock(String(vc.id), async () => {
       const remaining = humansOf(vc);
       if (!remaining.length) {
         await deleteIfEmpty(vc);
-      } else if (tempChannelOwners.get(vc.id) === member.id && (!afterCh || afterCh.id !== vc.id)) {
+      } else if (tempChannelOwners.get(String(vc.id)) === String(member.id) && (!afterCh || String(afterCh.id) !== String(vc.id))) {
         const newOwner = remaining[0];
-        tempChannelOwners.set(vc.id, newOwner.id);
+        tempChannelOwners.set(String(vc.id), String(newOwner.id));
         saveOwners();
         const embed = new EmbedBuilder()
           .setTitle("👑 Права канала переданы")
@@ -270,20 +325,36 @@ function guardManagedChannel(interaction) {
 
 async function toggleEveryonePerm(vc, permission, denyIt) {
   const everyone = vc.guild.roles.everyone;
-  const bit = PermissionsBitField.resolve(permission);
-  const existing = vc.permissionOverwrites.get(everyone.id);
+  // Fix Allow/Deny case: discord.js expects lowercase allow/deny or permission name mapping
+  // Use edit with permission name for reliability
+  let permKey = null;
+  if (permission === PermissionFlagsBits.Connect) permKey = "Connect";
+  else if (permission === PermissionFlagsBits.ViewChannel) permKey = "ViewChannel";
+  else if (permission === PermissionFlagsBits.Speak) permKey = "Speak";
+  if (permKey) {
+    // When denyIt = true -> deny (false), when false -> clear overwrite (null)
+    return vc.permissionOverwrites.edit(everyone, { [permKey]: denyIt ? false : null }, "Управление временным каналом");
+  }
+  // Fallback generic bitfield handling with correct lowercase keys
+  const existing = vc.permissionOverwrites.cache.get(String(everyone.id));
   const allow = existing ? existing.allow.bitfield : 0n;
   const deny = existing ? existing.deny.bitfield : 0n;
+  const bit = PermissionsBitField.resolve(permission);
+  const newAllow = allow & ~bit;
   const newDeny = denyIt ? deny | bit : deny & ~bit;
-  return vc.permissionOverwrites.set(everyone, { Allow: allow, Deny: newDeny }, "Управление временным каналом");
+  // Use edit with object containing allow/deny as strings? Use overwrite edit with bitfields
+  return vc.permissionOverwrites.edit(everyone, { Connect: undefined }, "Управление временным каналом").then(() => {
+    // Fallback if generic path needed, use set with correct structure
+    return vc.permissionOverwrites.set([{ id: everyone.id, allow: newAllow, deny: newDeny }], "Управление временным каналом");
+  });
 }
 
 async function vcLock(interaction) {
   const err = guardManagedChannel(interaction);
   if (err) return interaction.reply({ content: err, ephemeral: true });
   const vc = interaction.member.voice.channel;
-  const everything = vc.permissionOverwrites.get(vc.guild.roles.everyone.id);
-  const locked = everything ? everything.deny.has(PermissionFlagsBits.Connect) : false;
+  const overwrite = vc.permissionOverwrites.cache.get(String(vc.guild.roles.everyone.id));
+  const locked = overwrite ? overwrite.deny.has(PermissionFlagsBits.Connect) : false;
   await toggleEveryonePerm(vc, PermissionFlagsBits.Connect, !locked);
   return interaction.reply({
     content: locked ? "✅ Канал открыт." : "✅ Канал закрыт.",
@@ -295,8 +366,8 @@ async function vcHide(interaction) {
   const err = guardManagedChannel(interaction);
   if (err) return interaction.reply({ content: err, ephemeral: true });
   const vc = interaction.member.voice.channel;
-  const everything = vc.permissionOverwrites.get(vc.guild.roles.everyone.id);
-  const hidden = everything ? everything.deny.has(PermissionFlagsBits.ViewChannel) : false;
+  const overwrite = vc.permissionOverwrites.cache.get(String(vc.guild.roles.everyone.id));
+  const hidden = overwrite ? overwrite.deny.has(PermissionFlagsBits.ViewChannel) : false;
   await toggleEveryonePerm(vc, PermissionFlagsBits.ViewChannel, !hidden);
   return interaction.reply({
     content: hidden ? "✅ Канал показан." : "✅ Канал скрыт.",
@@ -404,8 +475,12 @@ async function onKickModal(interaction) {
   const raw = interaction.fields.getTextInputValue("vc_target");
   const member = await parseTarget(vc, raw, interaction);
   if (!member) return;
-  if (member.voice?.channel?.id === vc.id) {
-    await member.voice.setChannel(null, "Выгнан из временного канала");
+  if (String(member.voice?.channel?.id) === String(vc.id)) {
+    try {
+      await member.voice.setChannel(null, "Выгнан из временного канала");
+    } catch (e) {
+      return interaction.reply({ content: `Не удалось выгнать: ${e.message}`, ephemeral: true });
+    }
     return interaction.reply({ content: `✅ ${member} выгнан.`, ephemeral: true });
   }
   return interaction.reply({ content: "Участник не в вашем канале.", ephemeral: true });
@@ -418,7 +493,11 @@ async function onRenameModal(interaction) {
   const name = interaction.fields.getTextInputValue("vc_name").trim();
   if (!name) return interaction.reply({ content: "Название не может быть пустым.", ephemeral: true });
   const oldName = vc.name;
-  await vc.setName(name, "Переименован владельцем");
+  try {
+    await vc.setName(name, "Переименован владельцем");
+  } catch (e) {
+    return interaction.reply({ content: `Не удалось переименовать: ${e.message}`, ephemeral: true });
+  }
   return interaction.reply({
     content: `✅ Канал переименован: \`${oldName}\` → \`${name}\``,
     ephemeral: true,
@@ -435,7 +514,11 @@ async function onLimitModal(interaction) {
   if (n < 0 || n > 99) {
     return interaction.reply({ content: "Лимит должен быть от 0 до 99.", ephemeral: true });
   }
-  await vc.setUserLimit(n, "Лимит изменён владельцем");
+  try {
+    await vc.setUserLimit(n, "Лимит изменён владельцем");
+  } catch (e) {
+    return interaction.reply({ content: `Не удалось изменить лимит: ${e.message}`, ephemeral: true });
+  }
   const text = n === 0 ? "✅ Лимит снят." : `✅ Лимит установлен: **${n}** участников.`;
   return interaction.reply({ content: text, ephemeral: true });
 }
@@ -447,10 +530,10 @@ async function onTransferModal(interaction) {
   const raw = interaction.fields.getTextInputValue("vc_transfer_target");
   const member = await parseTarget(vc, raw, interaction);
   if (!member) return;
-  if (member.voice?.channel?.id !== vc.id) {
+  if (String(member.voice?.channel?.id) !== String(vc.id)) {
     return interaction.reply({ content: "Участник не в вашем канале.", ephemeral: true });
   }
-  tempChannelOwners.set(vc.id, member.id);
+  tempChannelOwners.set(String(vc.id), String(member.id));
   saveOwners();
   return interaction.reply({ content: `✅ Права канала переданы: **${member.displayName}**.`, ephemeral: true });
 }
