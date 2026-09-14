@@ -18,7 +18,7 @@
 ---
 
 ### `C:\Users\Admin\Documents\Default Project\Бот-Node\.env` — **CRITICAL**
-- **CRITICAL L1-5**: Реальные секреты в файле на диске после фиксов! `DISCORD_TOKEN=MTUy...`, `TWITCH_OAUTH=oauth:9tch...`, `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET=GOCSPX-BGFn...`, `YOUTUBE_REFRESH_TOKEN=1//0c2...` — утечка. Файл существует, `.gitignore` его игнорирует, но `.dockerignore` тоже игнорирует, а хост всё ещё хранит его в открытом виде. Любой `docker build` контекста без `.dockerignore` или бэкап сольёт токен. Предыдущие фиксы не ротировали токены.
+- **CRITICAL L1-5**: Реальные секреты в файле на диске после фиксов! `DISCORD_TOKEN=***`, `TWITCH_OAUTH=***`, `YOUTUBE_CLIENT_ID`, `YOUTUBE_CLIENT_SECRET=***`, `YOUTUBE_REFRESH_TOKEN=***` — утечка. Файл существует, `.gitignore` его игнорирует, но `.dockerignore` тоже игнорирует, а хост всё ещё хранит его в открытом виде. Любой `docker build` контекста без `.dockerignore` или бэкап сольёт токен. Предыдущие фиксы не ротировали токены.
 - **HIGH L1**: Формат `oauth:` токен без валидации длины, будет отправлен в логи при ошибке `sanitize` не покрывает `TWITCH_OAUTH` в `.env` файле.
 - **MEDIUM L9**: `KICK_ACCESS_TOKEN=` пустой — модерация Kick тихо отключена, но лог `KickMod` не предупреждает на старте о `KICK_ACCESS_TOKEN` пустом в `DEBUG`.
 
