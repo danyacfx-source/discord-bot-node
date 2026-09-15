@@ -92,8 +92,7 @@ export async function updatePresence(client) {
     } catch {}
   } else {
     try {
-      // No activity when offline — show idle without watching text
-      await client.user.setPresence({ activities: [], status: "idle" });
+      await client.user.setPresence({ activities: [{ name: "Стрим офлайн", type: 3 }], status: "idle" });
     } catch {}
   }
 }
