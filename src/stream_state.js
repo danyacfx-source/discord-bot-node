@@ -92,7 +92,7 @@ export async function updatePresence(client) {
     } catch {}
   } else {
     try {
-      await client.user.setPresence({ activities: [{ name: "Стрим офлайн", type: 3 }], status: "idle" });
+      await client.user.setPresence({ activities: [{ name: "Стрим офлайн", type: 3 }], status: "online" });
     } catch {}
   }
 }
