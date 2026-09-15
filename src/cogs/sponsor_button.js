@@ -4,7 +4,6 @@ import { CONFIG } from "../config.js";
 import { log } from "../notify.js";
 
 const cfg = CONFIG.sponsor || {};
-const donateUrl = CONFIG.socials?.donate || "";
 
 const cog = {
   name: "Sponsor",
@@ -13,10 +12,6 @@ const cog = {
       if (!cfg.enabled) return;
       if (!cfg.channel_id) {
         log.info("Sponsor", "Канал не задан (sponsor.channel_id) — модуль пропущен");
-        return;
-      }
-      if (!donateUrl) {
-        log.info("Sponsor", "Ссылка на донат пуста (socials.donate) — модуль пропущен");
         return;
       }
       try {
@@ -59,7 +54,7 @@ const cog = {
       const found = recent.find(
         (m) =>
           m.author?.id === client.user?.id &&
-          m.components?.[0]?.components?.some((c) => c.type === 2 && c.style === 5 && c.url === donateUrl)
+          m.embeds?.[0]?.title === (cfg.title || "⭐ Поддержать стрим")
       );
       if (found) {
         db.kvSet("sponsor_message_id", found.id);
@@ -93,11 +88,6 @@ const cog = {
         inline: false,
       });
     }
-    embed.addFields({
-      name: "🔗 Ссылка",
-      value: `[Открыть страницу доната](${donateUrl})`,
-      inline: false,
-    });
     embed.setFooter({ text: "Спасибо за поддержку! ❤️" });
     return embed;
   },
@@ -105,9 +95,10 @@ const cog = {
   _buildRow() {
     return new ActionRowBuilder().addComponents(
       new ButtonBuilder()
-        .setLabel("Стать спонсором ⭐")
-        .setStyle(ButtonStyle.Link)
-        .setURL(donateUrl)
+        .setCustomId("donate:btn")
+        .setLabel("Задонатить")
+        .setStyle(ButtonStyle.Success)
+        .setEmoji("🎁")
     );
   },
 };

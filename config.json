@@ -729,6 +729,15 @@
       "🎁 Участие в закрытых розыгрышах для спонсоров"
     ]
   },
+  "donations": {
+    "enabled": true,
+    "channel_id": "1547376296378507304",
+    "role": "Спонсор",
+    "role_id": "1534713595810680863",
+    "amount": 300,
+    "code_prefix": "VIP",
+    "poll_interval_seconds": 15
+  },
   "twitch": {
     "enabled": true,
     "channel": "dendosicsh",
