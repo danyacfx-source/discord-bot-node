@@ -5,7 +5,7 @@ import { Events, PermissionFlagsBits } from "discord.js";
 import { createClient, TOKEN } from "./client.js";
 import { Registry } from "./registry.js";
 import { configure, markReady, enqueueLog, sanitize, flushLogs, setClient } from "./notify.js";
-import { CONFIG, GUILD_ID, LOG_CHANNEL_ID, PING_ROLES, BOT_NAME, PROXY_URL, BASE_DIR } from "./config.js";
+import { CONFIG, GUILD_ID, LOG_CHANNEL_ID, PING_ROLES, BOT_NAME, PROXY_URL, DATA_DIR } from "./config.js";
 
 const BOT_PREFIX = (CONFIG.youtube?.commands?.prefix || process.env.BOT_PREFIX || "!").trim() || "!";
 
@@ -44,7 +44,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const COGS_DIR = path.join(__dirname, "cogs");
 
 // ---------- Логирование ----------
-const logFile = path.join(BASE_DIR, "bot.log");
+const logFile = path.join(DATA_DIR, "bot.log");
 const MAX_LOG_SIZE = 5 * 1024 * 1024; // 5 MB — ротация
 try {
   if (fs.existsSync(logFile)) {
@@ -77,7 +77,7 @@ function closeLogStream() {
 
 // ---------- Single-instance mutex ----------
 let lockFd = null;
-let lockPath = path.join(BASE_DIR, ".bot.lock");
+let lockPath = path.join(DATA_DIR, ".bot.lock");
 let lockCleanupRegistered = false;
 function cleanupLock() {
   try {
@@ -111,7 +111,7 @@ function registerLockCleanup() {
   process.on("SIGTERM", () => sigHandler("SIGTERM"));
 }
 function acquireSingleInstance() {
-  lockPath = path.join(BASE_DIR, ".bot.lock");
+  lockPath = path.join(DATA_DIR, ".bot.lock");
   const maxAttempts = 2;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
