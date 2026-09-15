@@ -33,7 +33,7 @@ ENV DB_DIR=/app/state
 ENV DATA_DIR=/app/state
 
 # Создаём директорию состояния до VOLUME чтобы Docker не затирал её при монтировании
-RUN mkdir -p /app/state && chown -R node:node /app/state
+RUN mkdir -p /app/state && chown -R node:node /app
 
 # Здоровье и том — VOLUME после COPY, healthcheck использует реальный эндпоинт /api/status
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 CMD node -e "fetch('http://127.0.0.1:'+(process.env.PANEL_PORT||17890)+'/api/status').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
